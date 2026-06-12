@@ -11,6 +11,9 @@ pub struct MainData {
     pub aspect_ratio: core::option::Option<crate::app::bsky::embed::defs::AspectRatio>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub captions: core::option::Option<Vec<Caption>>,
+    ///A hint to the client about how to present the video.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub presentation: core::option::Option<String>,
     ///The mp4 video file. May be up to 100mb, formerly limited to 50mb.
     pub video: crate::types::BlobRef,
 }
@@ -31,6 +34,9 @@ pub struct ViewData {
     pub aspect_ratio: core::option::Option<crate::app::bsky::embed::defs::AspectRatio>,
     pub cid: crate::types::string::Cid,
     pub playlist: String,
+    ///A hint to the client about how to present the video.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub presentation: core::option::Option<String>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub thumbnail: core::option::Option<String>,
 }
