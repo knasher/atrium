@@ -119,6 +119,9 @@ pub struct PostViewData {
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub bookmark_count: core::option::Option<i64>,
     pub cid: crate::types::string::Cid,
+    ///Debug information for internal development
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub debug: core::option::Option<crate::types::Unknown>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub embed: core::option::Option<crate::types::Union<PostViewEmbedRefs>>,
     pub indexed_at: crate::types::string::Datetime,
@@ -258,6 +261,8 @@ pub enum PostViewEmbedRefs {
     AppBskyEmbedImagesView(Box<crate::app::bsky::embed::images::View>),
     #[serde(rename = "app.bsky.embed.video#view")]
     AppBskyEmbedVideoView(Box<crate::app::bsky::embed::video::View>),
+    #[serde(rename = "app.bsky.embed.gallery#view")]
+    AppBskyEmbedGalleryView(Box<crate::app::bsky::embed::gallery::View>),
     #[serde(rename = "app.bsky.embed.external#view")]
     AppBskyEmbedExternalView(Box<crate::app::bsky::embed::external::View>),
     #[serde(rename = "app.bsky.embed.record#view")]
