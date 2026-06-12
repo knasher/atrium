@@ -313,6 +313,30 @@ pub struct LexRecord {
     pub record: LexRecordRecord,
 }
 
+// permissions (OAuth scopes)
+
+#[skip_serializing_none]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LexPermission {
+    pub resource: String,
+    pub action: Option<Vec<String>>,
+    pub collection: Option<Vec<String>>,
+    pub lxm: Option<Vec<String>>,
+    pub inherit_aud: Option<bool>,
+}
+
+#[skip_serializing_none]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LexPermissionSet {
+    pub description: Option<String>,
+    pub title: Option<String>,
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub permissions: Vec<LexPermission>,
+}
+
 // core
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -335,6 +359,8 @@ pub enum LexUserType {
     Array(LexArray),
     // lexToken
     Token(LexToken),
+    // lexPermissionSet (OAuth permission scopes; not an API data type)
+    PermissionSet(LexPermissionSet),
     // lexObject
     Object(LexObject),
     // lexBoolean,

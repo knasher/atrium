@@ -23,12 +23,18 @@ pub fn genapi(
     for path in &paths {
         schemas.push(from_reader::<_, LexiconDoc>(File::open(path)?)?);
     }
+    // Register record NSIDs so refs to a record's `#main` resolve to `Record`, not `Main`.
+    let record_nsids = schemas
+        .iter()
+        .filter(|schema| {
+            matches!(schema.defs.get("main"), Some(atrium_lex::lexicon::LexUserType::Record(_)))
+        })
+        .map(|schema| schema.id.clone())
+        .collect::<std::collections::HashSet<_>>();
+    token_stream::set_record_nsids(record_nsids);
     let mut results = Vec::new();
     for &(prefix, _) in namespaces {
-        let targets = schemas
-            .iter()
-            .filter(|schema| schema.id.starts_with(prefix))
-            .collect_vec();
+        let targets = schemas.iter().filter(|schema| schema.id.starts_with(prefix)).collect_vec();
         results.extend(gen(&outdir, &targets)?);
     }
     results.push(generate_records(&outdir, &schemas, namespaces)?);
