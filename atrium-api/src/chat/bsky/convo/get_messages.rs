@@ -17,13 +17,27 @@ pub struct OutputData {
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub cursor: core::option::Option<String>,
     pub messages: Vec<crate::types::Union<OutputMessagesItem>>,
+    ///Set of all members who authored or reacted to the returned messages. Members referred to by system messages are also included.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub related_profiles:
+        core::option::Option<Vec<crate::chat::bsky::actor::defs::ProfileViewBasic>>,
 }
 pub type Output = crate::types::Object<OutputData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "error", content = "message")]
-pub enum Error {}
+pub enum Error {
+    InvalidConvo(Option<String>),
+}
 impl std::fmt::Display for Error {
     fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::InvalidConvo(msg) => {
+                write!(_f, "InvalidConvo")?;
+                if let Some(msg) = msg {
+                    write!(_f, ": {msg}")?;
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -34,4 +48,6 @@ pub enum OutputMessagesItem {
     ChatBskyConvoDefsMessageView(Box<crate::chat::bsky::convo::defs::MessageView>),
     #[serde(rename = "chat.bsky.convo.defs#deletedMessageView")]
     ChatBskyConvoDefsDeletedMessageView(Box<crate::chat::bsky::convo::defs::DeletedMessageView>),
+    #[serde(rename = "chat.bsky.convo.defs#systemMessageView")]
+    ChatBskyConvoDefsSystemMessageView(Box<crate::chat::bsky::convo::defs::SystemMessageView>),
 }

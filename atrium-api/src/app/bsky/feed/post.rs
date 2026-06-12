@@ -60,6 +60,8 @@ pub enum RecordEmbedRefs {
     AppBskyEmbedImagesMain(Box<crate::app::bsky::embed::images::Main>),
     #[serde(rename = "app.bsky.embed.video")]
     AppBskyEmbedVideoMain(Box<crate::app::bsky::embed::video::Main>),
+    #[serde(rename = "app.bsky.embed.gallery")]
+    AppBskyEmbedGalleryMain(Box<crate::app::bsky::embed::gallery::Main>),
     #[serde(rename = "app.bsky.embed.external")]
     AppBskyEmbedExternalMain(Box<crate::app::bsky::embed::external::Main>),
     #[serde(rename = "app.bsky.embed.record")]

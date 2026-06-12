@@ -77,6 +77,18 @@ pub const REFERENCELIST: &str = "app.bsky.graph.defs#referencelist";
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct RelationshipData {
+    ///if the actor is blocked by this DID, contains the AT-URI of the block record
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub blocked_by: core::option::Option<String>,
+    ///if the actor is blocked by this DID via a block list, contains the AT-URI of the listblock record
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub blocked_by_list: core::option::Option<String>,
+    ///if the actor blocks this DID, this is the AT-URI of the block record
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub blocking: core::option::Option<String>,
+    ///if the actor blocks this DID via a block list, this is the AT-URI of the listblock record
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub blocking_by_list: core::option::Option<String>,
     pub did: crate::types::string::Did,
     ///if the actor is followed by this DID, contains the AT-URI of the follow record
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
