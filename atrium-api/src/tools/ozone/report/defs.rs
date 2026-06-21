@@ -235,6 +235,9 @@ pub struct ReportActivityViewData {
     ///Optional public note, potentially visible to the reporter.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub public_note: core::option::Option<String>,
+    ///Full view of the report this activity belongs to.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub report: core::option::Option<ReportView>,
     ///ID of the report this activity belongs to
     pub report_id: i64,
 }

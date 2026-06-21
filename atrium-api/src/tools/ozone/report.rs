@@ -9,6 +9,7 @@ pub mod get_latest_report;
 pub mod get_live_stats;
 pub mod get_report;
 pub mod list_activities;
+pub mod query_activities;
 pub mod query_reports;
 pub mod reassign_queue;
 pub mod refresh_stats;

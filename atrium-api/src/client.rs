@@ -7147,6 +7147,29 @@ where
             _ => Err(atrium_xrpc::Error::UnexpectedResponseType),
         }
     }
+    ///Query report activities across all reports, ordered by createdAt. Used by downstream pollers; for per-report activity history use listActivities.
+    pub async fn query_activities(
+        &self,
+        params: crate::tools::ozone::report::query_activities::Parameters,
+    ) -> atrium_xrpc::Result<
+        crate::tools::ozone::report::query_activities::Output,
+        crate::tools::ozone::report::query_activities::Error,
+    > {
+        let response = self
+            .xrpc
+            .send_xrpc::<_, (), _, _>(&atrium_xrpc::XrpcRequest {
+                method: http::Method::GET,
+                nsid: crate::tools::ozone::report::query_activities::NSID.into(),
+                parameters: Some(params),
+                input: None,
+                encoding: None,
+            })
+            .await?;
+        match response {
+            atrium_xrpc::OutputDataOrBytes::Data(data) => Ok(data),
+            _ => Err(atrium_xrpc::Error::UnexpectedResponseType),
+        }
+    }
     ///View moderation reports. Reports are individual instances of content being reported, as opposed to subject statuses which aggregate reports at the subject level.
     pub async fn query_reports(
         &self,

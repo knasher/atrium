@@ -18,6 +18,7 @@ pub type Output = crate::types::Object<OutputData>;
 pub enum Error {
     ConvoLocked(Option<String>),
     InvalidConvo(Option<String>),
+    ReplyTargetNotFound(Option<String>),
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -30,6 +31,12 @@ impl std::fmt::Display for Error {
             }
             Error::InvalidConvo(msg) => {
                 write!(_f, "InvalidConvo")?;
+                if let Some(msg) = msg {
+                    write!(_f, ": {msg}")?;
+                }
+            }
+            Error::ReplyTargetNotFound(msg) => {
+                write!(_f, "ReplyTargetNotFound")?;
                 if let Some(msg) = msg {
                     write!(_f, ": {msg}")?;
                 }
