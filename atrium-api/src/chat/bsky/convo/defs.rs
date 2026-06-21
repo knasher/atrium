@@ -391,6 +391,9 @@ pub struct MessageInputData {
     ///Annotations of text (mentions, URLs, hashtags, etc)
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub facets: core::option::Option<Vec<crate::app::bsky::richtext::facet::Main>>,
+    ///If set, the message this message is replying to. The referenced message must be in the same convo.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub reply_to: core::option::Option<ReplyRef>,
     pub text: String,
 }
 pub type MessageInput = crate::types::Object<MessageInputData>;
@@ -414,6 +417,9 @@ pub struct MessageViewData {
     ///Reactions to this message, in ascending order of creation time.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub reactions: core::option::Option<Vec<ReactionView>>,
+    ///If set, the message this message is replying to. The full view of the referenced message is embedded so the client can render it inline. Only a single level is embedded: the embedded message will not itself have a populated 'replyTo' field even if it was also a reply.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub reply_to: core::option::Option<crate::types::Union<MessageViewReplyToRefs>>,
     pub rev: String,
     pub sender: MessageViewSender,
     pub sent_at: crate::types::string::Datetime,
@@ -440,6 +446,13 @@ pub struct ReactionViewSenderData {
     pub did: crate::types::string::Did,
 }
 pub type ReactionViewSender = crate::types::Object<ReactionViewSenderData>;
+///A reference to another message within the same convo, used to indicate that a message is a reply to it.
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplyRefData {
+    pub message_id: String,
+}
+pub type ReplyRef = crate::types::Object<ReplyRefData>;
 ///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating a user was added to the group convo.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -648,6 +661,14 @@ pub enum MessageViewEmbedRefs {
     AppBskyEmbedRecordView(Box<crate::app::bsky::embed::record::View>),
     #[serde(rename = "chat.bsky.embed.joinLink#view")]
     ChatBskyEmbedJoinLinkView(Box<crate::chat::bsky::embed::join_link::View>),
+}
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(tag = "$type")]
+pub enum MessageViewReplyToRefs {
+    #[serde(rename = "chat.bsky.convo.defs#messageView")]
+    MessageView(Box<MessageView>),
+    #[serde(rename = "chat.bsky.convo.defs#deletedMessageView")]
+    DeletedMessageView(Box<DeletedMessageView>),
 }
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "$type")]
