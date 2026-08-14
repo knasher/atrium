@@ -1,9 +1,10 @@
 use atrium_lex::lexicon::*;
 use heck::{ToPascalCase, ToShoutySnakeCase, ToSnakeCase};
 use itertools::Itertools;
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
 use syn::{Path, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -11,6 +12,46 @@ enum OutputType {
     None,
     Data,
     Bytes,
+}
+
+/// NSIDs whose `main` def is a `record`. Populated once via [`set_record_nsids`]
+/// before generation so refs to a record's `#main` resolve to the generated
+/// `Record` type rather than the (non-existent) `Main`.
+static RECORD_NSIDS: OnceLock<HashSet<String>> = OnceLock::new();
+
+/// Register the set of record NSIDs. Call once before generating any schema.
+pub fn set_record_nsids(nsids: HashSet<String>) {
+    let _ = RECORD_NSIDS.set(nsids);
+}
+
+fn is_record_nsid(nsid: &str) -> bool {
+    RECORD_NSIDS.get().is_some_and(|set| set.contains(nsid))
+}
+
+/// Build an identifier from an already-cased name, using a raw identifier
+/// (`r#name`) when the name collides with a Rust keyword (e.g. `match`, `type`, `ref`).
+fn escaped_ident(name: &str) -> Ident {
+    if is_rust_keyword(name) {
+        format_ident!("r#{}", name)
+    } else {
+        format_ident!("{}", name)
+    }
+}
+
+/// Rust keywords that are valid as raw identifiers. Excludes `crate`/`self`/`Self`/`super`,
+/// which cannot be raw identifiers (they do not occur as Lexicon property names).
+fn is_rust_keyword(s: &str) -> bool {
+    matches!(
+        s,
+        // strict keywords
+        "as" | "break" | "const" | "continue" | "dyn" | "else" | "enum" | "extern" | "false"
+            | "fn" | "for" | "if" | "impl" | "in" | "let" | "loop" | "match" | "mod" | "move"
+            | "mut" | "pub" | "ref" | "return" | "static" | "struct" | "trait" | "true" | "type"
+            | "unsafe" | "use" | "where" | "while" | "async" | "await"
+            // reserved keywords
+            | "abstract" | "become" | "box" | "do" | "final" | "gen" | "macro" | "override"
+            | "priv" | "typeof" | "unsized" | "virtual" | "yield" | "try"
+    )
 }
 
 pub fn user_type(
@@ -28,6 +69,8 @@ pub fn user_type(
         LexUserType::Token(token) => lex_token(token, name, schema_id)?,
         LexUserType::Object(object) => lex_object(object, if is_main { "Main" } else { name })?,
         LexUserType::String(string) => lex_string(string, name)?,
+        // `permission-set` defs describe OAuth scopes, not API data types; emit nothing.
+        LexUserType::PermissionSet(_) => quote!(),
         _ => unimplemented!("{def:?}"),
     };
     Ok(quote! {
@@ -306,10 +349,7 @@ fn lex_object_property(
         LexObjectProperty::String(string) => string_type(string)?,
         LexObjectProperty::Unknown(unknown) => unknown_type(unknown)?,
     };
-    let field_name = format_ident!(
-        "{}",
-        if name == "ref" || name == "type" { format!("r#{name}") } else { name.to_snake_case() }
-    );
+    let field_name = escaped_ident(&name.to_snake_case());
     let mut attributes = match property {
         LexObjectProperty::Bytes(_) => {
             let default = if is_required { quote!() } else { quote!(#[serde(default)]) };
@@ -1021,6 +1061,13 @@ fn derives() -> Result<TokenStream> {
 
 fn resolve_path(r#ref: &str, default: &str) -> Result<TokenStream> {
     let (namespace, def) = r#ref.split_once('#').unwrap_or((r#ref, default));
+    // A ref to a record's `#main` must resolve to the generated `Record` type
+    // (records generate `Record`/`RecordData`); only objects generate `Main`.
+    let def = if def == "main" && !namespace.is_empty() && is_record_nsid(namespace) {
+        "record"
+    } else {
+        def
+    };
     let path = syn::parse_str::<Path>(&if namespace.is_empty() {
         def.to_pascal_case()
     } else {

@@ -22,6 +22,13 @@ pub(crate) fn generate_schemas(
     outdir: &Path,
 ) -> Result<Vec<PathBuf>, Box<dyn Error>> {
     let mut results = Vec::new();
+    // `permission-set` defs describe OAuth scopes, not API data types, so they produce
+    // no Rust types. Skip schemas that only define permission sets (e.g. `app.bsky.auth*`).
+    if !schema.defs.is_empty()
+        && schema.defs.values().all(|def| matches!(def, LexUserType::PermissionSet(_)))
+    {
+        return Ok(results);
+    }
     let mut paths = schema.id.split('.').collect::<Vec<_>>();
     if let Some(basename) = paths.pop() {
         let mut tokens = Vec::new();
@@ -87,6 +94,7 @@ pub(crate) fn generate_records(
 ) -> Result<PathBuf, Box<dyn Error>> {
     let records = schemas
         .iter()
+        .filter(|schema| namespaces.iter().any(|(prefix, _)| schema.id.starts_with(prefix)))
         .filter_map(|schema| {
             if let Some(LexUserType::Record(_)) = schema.defs.get("main") {
                 Some(schema.id.clone())
@@ -116,6 +124,9 @@ pub(crate) fn generate_client(
     let mut schema_map = HashMap::new();
     let mut tree = HashMap::new();
     for schema in schemas {
+        if !namespaces.iter().any(|(prefix, _)| schema.id.starts_with(prefix)) {
+            continue;
+        }
         if let Some(def) = schema.defs.get("main") {
             if matches!(
                 def,
