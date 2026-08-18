@@ -41,7 +41,7 @@ pub struct ParametersData {
     ///Filter by subject DID or AT-URI.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub subject: core::option::Option<String>,
-    ///If specified, reports of the given type (account or record) will be returned.
+    ///If specified, reports of the given subject type will be returned.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub subject_type: core::option::Option<String>,
 }

@@ -25,7 +25,9 @@ impl std::fmt::Display for Error {
 #[serde(tag = "$type")]
 pub enum OutputJoinLinkPreviewsItem {
     #[serde(rename = "chat.bsky.group.defs#joinLinkPreviewView")]
-    ChatBskyGroupDefsJoinLinkPreviewView(Box<crate::chat::bsky::group::defs::JoinLinkPreviewView>),
+    ChatBskyGroupDefsJoinLinkPreviewView(
+        Box<crate::chat::bsky::group::defs::JoinLinkPreviewView>,
+    ),
     #[serde(rename = "chat.bsky.group.defs#disabledJoinLinkPreviewView")]
     ChatBskyGroupDefsDisabledJoinLinkPreviewView(
         Box<crate::chat::bsky::group::defs::DisabledJoinLinkPreviewView>,

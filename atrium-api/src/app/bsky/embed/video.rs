@@ -14,7 +14,7 @@ pub struct MainData {
     ///A hint to the client about how to present the video.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub presentation: core::option::Option<String>,
-    ///The mp4 video file. May be up to 100mb, formerly limited to 50mb.
+    ///The mp4 video file. May be up to 300mb, formerly limited to 100mb.
     pub video: crate::types::BlobRef,
 }
 pub type Main = crate::types::Object<MainData>;

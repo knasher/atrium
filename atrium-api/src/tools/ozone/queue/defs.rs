@@ -61,12 +61,17 @@ pub struct QueueViewData {
     pub id: i64,
     ///Display name of the queue
     pub name: String,
+    ///Policy keys recommended when actioning reports in this queue
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub recommended_policies: core::option::Option<Vec<String>>,
     ///Report reason types this queue accepts (fully qualified NSIDs)
-    pub report_types: Vec<String>,
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub report_types: core::option::Option<Vec<String>>,
     ///Statistics about this queue
     pub stats: QueueStats,
     ///Subject types this queue accepts.
-    pub subject_types: Vec<String>,
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub subject_types: core::option::Option<Vec<String>>,
     pub updated_at: crate::types::string::Datetime,
 }
 pub type QueueView = crate::types::Object<QueueViewData>;

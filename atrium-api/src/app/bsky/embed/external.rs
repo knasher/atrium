@@ -21,7 +21,9 @@ pub type ColorRgb = crate::types::Object<ColorRgbData>;
 pub struct ExternalData {
     ///StrongRefs (uri+cid) of the Atmosphere records that backed this view.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub associated_refs: core::option::Option<Vec<crate::com::atproto::repo::strong_ref::Main>>,
+    pub associated_refs: core::option::Option<
+        Vec<crate::com::atproto::repo::strong_ref::Main>,
+    >,
     pub description: String,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub thumb: core::option::Option<crate::types::BlobRef>,
@@ -40,11 +42,14 @@ pub type View = crate::types::Object<ViewData>;
 pub struct ViewExternalData {
     ///Profiles of the owners of the Atmosphere records that backed this view.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub associated_profiles:
-        core::option::Option<Vec<crate::app::bsky::actor::defs::ProfileViewBasic>>,
+    pub associated_profiles: core::option::Option<
+        Vec<crate::app::bsky::actor::defs::ProfileViewBasic>,
+    >,
     ///StrongRefs (uri+cid) of the Atmosphere records that backed this view.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub associated_refs: core::option::Option<Vec<crate::com::atproto::repo::strong_ref::Main>>,
+    pub associated_refs: core::option::Option<
+        Vec<crate::com::atproto::repo::strong_ref::Main>,
+    >,
     ///When the external content was created, if available. Example: a publication date, for an article.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub created_at: core::option::Option<crate::types::string::Datetime>,

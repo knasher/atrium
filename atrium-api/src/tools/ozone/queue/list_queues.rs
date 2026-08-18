@@ -17,7 +17,7 @@ pub struct ParametersData {
     ///Filter queues that handle any of these report reason types.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub report_types: core::option::Option<Vec<String>>,
-    ///Filter queues that handle this subject type ('account' or 'record').
+    ///Filter queues that handle this subject type ('account', 'record', 'message', or 'conversation').
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub subject_type: core::option::Option<String>,
 }

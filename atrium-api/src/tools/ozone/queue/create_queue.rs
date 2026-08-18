@@ -12,10 +12,15 @@ pub struct InputData {
     pub description: core::option::Option<String>,
     ///Display name for the queue (must be unique)
     pub name: String,
+    ///Policy keys to recommend when actioning reports in this queue
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub recommended_policies: core::option::Option<Vec<String>>,
     ///Report reason types (fully qualified NSIDs)
-    pub report_types: Vec<String>,
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub report_types: core::option::Option<Vec<String>>,
     ///Subject types this queue accepts
-    pub subject_types: Vec<String>,
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub subject_types: core::option::Option<Vec<String>>,
 }
 pub type Input = crate::types::Object<InputData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -27,12 +32,20 @@ pub type Output = crate::types::Object<OutputData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "error", content = "message")]
 pub enum Error {
+    ///One or more recommended policy keys do not exist in the configured policy list
+    InvalidRecommendedPolicies(Option<String>),
     ///The queue configuration conflicts with an existing queue
     ConflictingQueue(Option<String>),
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Error::InvalidRecommendedPolicies(msg) => {
+                write!(_f, "InvalidRecommendedPolicies")?;
+                if let Some(msg) = msg {
+                    write!(_f, ": {msg}")?;
+                }
+            }
             Error::ConflictingQueue(msg) => {
                 write!(_f, "ConflictingQueue")?;
                 if let Some(msg) = msg {

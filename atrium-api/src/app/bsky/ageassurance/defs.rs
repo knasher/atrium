@@ -2,7 +2,6 @@
 //!Definitions for the `app.bsky.ageassurance.defs` namespace.
 ///The access level granted based on Age Assurance data we've processed.
 pub type Access = String;
-///
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigData {
@@ -14,10 +13,16 @@ pub type Config = crate::types::Object<ConfigData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigRegionData {
+    ///Verification methods permitted in this region in addition to the third-party (KWS) flow, which is always supported. `device` permits using the native on-device age APIs (e.g. Apple Declared Age Range, Google Play Age Signals).
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub additional_verification_methods: core::option::Option<Vec<String>>,
     ///The ISO 3166-1 alpha-2 country code this configuration applies to.
     pub country_code: String,
     ///The minimum age (as a whole integer) required to use Bluesky in this region.
     pub min_access_age: i64,
+    ///The platforms this configuration applies to. If omitted, the configuration applies to all platforms.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub platforms: core::option::Option<Vec<String>>,
     ///The ISO 3166-2 region code this configuration applies to. If omitted, the configuration applies to the entire country.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub region_code: core::option::Option<String>,
@@ -40,8 +45,9 @@ pub struct ConfigRegionRuleIfAccountNewerThanData {
     ///The date threshold as a datetime string.
     pub date: crate::types::string::Datetime,
 }
-pub type ConfigRegionRuleIfAccountNewerThan =
-    crate::types::Object<ConfigRegionRuleIfAccountNewerThanData>;
+pub type ConfigRegionRuleIfAccountNewerThan = crate::types::Object<
+    ConfigRegionRuleIfAccountNewerThanData,
+>;
 ///Age Assurance rule that applies if the account is older than a certain date.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -50,8 +56,9 @@ pub struct ConfigRegionRuleIfAccountOlderThanData {
     ///The date threshold as a datetime string.
     pub date: crate::types::string::Datetime,
 }
-pub type ConfigRegionRuleIfAccountOlderThan =
-    crate::types::Object<ConfigRegionRuleIfAccountOlderThanData>;
+pub type ConfigRegionRuleIfAccountOlderThan = crate::types::Object<
+    ConfigRegionRuleIfAccountOlderThanData,
+>;
 ///Age Assurance rule that applies if the user has been assured to be equal-to or over a certain age.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -60,8 +67,9 @@ pub struct ConfigRegionRuleIfAssuredOverAgeData {
     ///The age threshold as a whole integer.
     pub age: i64,
 }
-pub type ConfigRegionRuleIfAssuredOverAge =
-    crate::types::Object<ConfigRegionRuleIfAssuredOverAgeData>;
+pub type ConfigRegionRuleIfAssuredOverAge = crate::types::Object<
+    ConfigRegionRuleIfAssuredOverAgeData,
+>;
 ///Age Assurance rule that applies if the user has been assured to be under a certain age.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -70,8 +78,9 @@ pub struct ConfigRegionRuleIfAssuredUnderAgeData {
     ///The age threshold as a whole integer.
     pub age: i64,
 }
-pub type ConfigRegionRuleIfAssuredUnderAge =
-    crate::types::Object<ConfigRegionRuleIfAssuredUnderAgeData>;
+pub type ConfigRegionRuleIfAssuredUnderAge = crate::types::Object<
+    ConfigRegionRuleIfAssuredUnderAgeData,
+>;
 ///Age Assurance rule that applies if the user has declared themselves equal-to or over a certain age.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -80,8 +89,9 @@ pub struct ConfigRegionRuleIfDeclaredOverAgeData {
     ///The age threshold as a whole integer.
     pub age: i64,
 }
-pub type ConfigRegionRuleIfDeclaredOverAge =
-    crate::types::Object<ConfigRegionRuleIfDeclaredOverAgeData>;
+pub type ConfigRegionRuleIfDeclaredOverAge = crate::types::Object<
+    ConfigRegionRuleIfDeclaredOverAgeData,
+>;
 ///Age Assurance rule that applies if the user has declared themselves under a certain age.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -90,8 +100,9 @@ pub struct ConfigRegionRuleIfDeclaredUnderAgeData {
     ///The age threshold as a whole integer.
     pub age: i64,
 }
-pub type ConfigRegionRuleIfDeclaredUnderAge =
-    crate::types::Object<ConfigRegionRuleIfDeclaredUnderAgeData>;
+pub type ConfigRegionRuleIfDeclaredUnderAge = crate::types::Object<
+    ConfigRegionRuleIfDeclaredUnderAgeData,
+>;
 ///Object used to store Age Assurance data in stash.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

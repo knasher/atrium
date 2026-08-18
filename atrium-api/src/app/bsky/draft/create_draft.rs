@@ -11,7 +11,7 @@ pub type Input = crate::types::Object<InputData>;
 #[serde(rename_all = "camelCase")]
 pub struct OutputData {
     ///The ID of the created draft.
-    pub id: String,
+    pub id: crate::types::string::Tid,
 }
 pub type Output = crate::types::Object<OutputData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]

@@ -15,6 +15,9 @@ pub struct InputData {
     pub name: core::option::Option<String>,
     ///ID of the queue to update
     pub queue_id: i64,
+    ///Policy keys to recommend when actioning reports in this queue
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub recommended_policies: core::option::Option<Vec<String>>,
 }
 pub type Input = crate::types::Object<InputData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -25,9 +28,20 @@ pub struct OutputData {
 pub type Output = crate::types::Object<OutputData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "error", content = "message")]
-pub enum Error {}
+pub enum Error {
+    ///One or more recommended policy keys do not exist in the configured policy list
+    InvalidRecommendedPolicies(Option<String>),
+}
 impl std::fmt::Display for Error {
     fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::InvalidRecommendedPolicies(msg) => {
+                write!(_f, "InvalidRecommendedPolicies")?;
+                if let Some(msg) = msg {
+                    write!(_f, ": {msg}")?;
+                }
+            }
+        }
         Ok(())
     }
 }

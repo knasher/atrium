@@ -12,7 +12,9 @@ pub type Input = crate::types::Object<InputData>;
 #[serde(rename_all = "camelCase")]
 pub struct OutputData {
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub added_members: core::option::Option<Vec<crate::chat::bsky::actor::defs::ProfileViewBasic>>,
+    pub added_members: core::option::Option<
+        Vec<crate::chat::bsky::actor::defs::ProfileViewBasic>,
+    >,
     pub convo: crate::chat::bsky::convo::defs::ConvoView,
 }
 pub type Output = crate::types::Object<OutputData>;

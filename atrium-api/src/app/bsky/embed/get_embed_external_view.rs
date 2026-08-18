@@ -17,7 +17,9 @@ pub struct OutputData {
     pub associated_records: core::option::Option<Vec<crate::types::Unknown>>,
     ///StrongRefs (URI+CID) of the Atmosphere records that backed this view, suitable for embedding into a post's external.associatedRefs.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub associated_refs: core::option::Option<Vec<crate::com::atproto::repo::strong_ref::Main>>,
+    pub associated_refs: core::option::Option<
+        Vec<crate::com::atproto::repo::strong_ref::Main>,
+    >,
     ///Hydrated view of the embed. Present only when the resolved records back the requested URL and supply enough information to populate the required `viewExternal` fields. Omitted alongside the rest of the response when no records resolved or validation failed.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub view: core::option::Option<crate::app::bsky::embed::external::View>,
