@@ -19,7 +19,11 @@
 
 /// Asserts that an `Object`'s `extra_data` caught nothing, i.e. every field in
 /// the payload was modelled by a typed field.
-#[cfg(any(feature = "namespace-chatbsky", feature = "namespace-toolsozone"))]
+#[cfg(any(
+    feature = "namespace-appbsky",
+    feature = "namespace-chatbsky",
+    feature = "namespace-toolsozone"
+))]
 fn assert_fully_typed(extra_data: &impl serde::Serialize, what: &str) {
     let extra = serde_json::to_value(extra_data).expect("serialize extra_data");
     assert_eq!(extra, serde_json::json!({}), "{what}: fields leaked into extra_data: {extra}");
@@ -159,5 +163,59 @@ mod ozone {
             value,
             "round-trip changed the payload"
         );
+    }
+}
+
+#[cfg(feature = "namespace-appbsky")]
+mod actor {
+    use super::assert_fully_typed;
+    use atrium_api::app::bsky::actor::ContentVisibilityDeclaration;
+    use atrium_api::record::KnownRecord;
+    use atrium_api::types::Collection;
+    use serde_json::{Value, from_str, from_value, json, to_value};
+
+    /// `app.bsky.actor.contentVisibilityDeclaration` is the first record whose
+    /// NSID leaf is camelCase, and it broke an assumption in codegen: the NSID
+    /// was rebuilt from the snake_case'd file stem, so the record never matched
+    /// its own schema and got no `Collection` impl. `KnownRecord` is built from
+    /// schema ids, so it *did* gain the variant — leaving downstream crates with
+    /// an arm they could not satisfy (fixed upstream in atrium-rs/atrium#345).
+    ///
+    /// Naming the record through the associated type makes this fail to compile
+    /// if the `Collection` impl disappears again; the assertions catch the two
+    /// halves disagreeing on the NSID or the record type.
+    #[test]
+    fn content_visibility_declaration_collection_matches_known_record() {
+        const NSID: &str = "app.bsky.actor.contentVisibilityDeclaration";
+        const JSON: &str = r#"{ "hideFromAlgorithmicRecommendations": true }"#;
+
+        // The `Collection` impl exists and carries the camelCase NSID verbatim,
+        // rather than a snake_case'd or otherwise mangled form.
+        assert_eq!(ContentVisibilityDeclaration::NSID, NSID);
+        assert_eq!(ContentVisibilityDeclaration::nsid().as_str(), NSID);
+
+        let value: Value = from_str(JSON).expect("valid JSON");
+        let record: <ContentVisibilityDeclaration as Collection>::Record =
+            from_value(value.clone()).expect("deserialize record");
+
+        assert!(record.hide_from_algorithmic_recommendations);
+        assert_fully_typed(&record.extra_data, "contentVisibilityDeclaration record");
+        assert_eq!(
+            to_value(&record).expect("re-serialize"),
+            value,
+            "round-trip changed the payload"
+        );
+
+        // The `$type`-tagged form resolves to the matching `KnownRecord` variant
+        // holding the very same record type the `Collection` impl points at.
+        let mut tagged = value;
+        tagged.as_object_mut().expect("object").insert("$type".into(), json!(NSID));
+
+        match from_value::<KnownRecord>(tagged).expect("deserialize KnownRecord") {
+            KnownRecord::AppBskyActorContentVisibilityDeclaration(boxed) => {
+                assert_eq!(*boxed, record, "KnownRecord and Collection disagree on the record");
+            }
+            other => panic!("`{NSID}` resolved to the wrong KnownRecord variant: {other:?}"),
+        }
     }
 }
