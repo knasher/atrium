@@ -18,9 +18,13 @@ pub struct ConvoViewData {
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub kind: core::option::Option<crate::types::Union<ConvoViewKindRefs>>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub last_message: core::option::Option<crate::types::Union<ConvoViewLastMessageRefs>>,
+    pub last_message: core::option::Option<
+        crate::types::Union<ConvoViewLastMessageRefs>,
+    >,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub last_reaction: core::option::Option<crate::types::Union<ConvoViewLastReactionRefs>>,
+    pub last_reaction: core::option::Option<
+        crate::types::Union<ConvoViewLastReactionRefs>,
+    >,
     ///Members of this conversation. For direct convos, it will be an immutable list of the 2 members. For group convos, it will a list of important members (the first few members, the viewer, the member who added the viewer, the member who sent the last message, the member who sent the last reaction), but will not contain the full list of members. Use chat.bsky.convo.getConvoMembers to list all members.
     pub members: Vec<crate::chat::bsky::actor::defs::ProfileViewBasic>,
     pub muted: bool,
@@ -40,12 +44,10 @@ pub struct DeletedMessageViewData {
     pub sent_at: crate::types::string::Datetime,
 }
 pub type DeletedMessageView = crate::types::Object<DeletedMessageViewData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here].
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DirectConvoData {}
 pub type DirectConvo = crate::types::Object<DirectConvoData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here].
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupConvoData {
@@ -78,7 +80,7 @@ pub struct LogAcceptConvoData {
     pub rev: String,
 }
 pub type LogAcceptConvo = crate::types::Object<LogAcceptConvoData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a member was added to a group convo. The member who was added gets a logBeginConvo (to create the convo) but also a logAddMember (to show the system message as the first message the user sees).
+///Event indicating a member was added to a group convo. The member who was added gets a logBeginConvo (to create the convo) but also a logAddMember (to show the system message as the first message the user sees).
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogAddMemberData {
@@ -99,12 +101,13 @@ pub struct LogAddReactionData {
     pub reaction: ReactionView,
     ///Profiles referred in the message and reaction views. This isn't required for compatibility, because it was added later, but should generally be present.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub related_profiles:
-        core::option::Option<Vec<crate::chat::bsky::actor::defs::ProfileViewBasic>>,
+    pub related_profiles: core::option::Option<
+        Vec<crate::chat::bsky::actor::defs::ProfileViewBasic>,
+    >,
     pub rev: String,
 }
 pub type LogAddReaction = crate::types::Object<LogAddReactionData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a join request was approved by the viewer. Only the owner gets this. The approved member gets a logBeginConvo.
+///Event indicating a join request was approved by the viewer. Only the owner gets this. The approved member gets a logBeginConvo.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogApproveJoinRequestData {
@@ -122,7 +125,7 @@ pub struct LogBeginConvoData {
     pub rev: String,
 }
 pub type LogBeginConvo = crate::types::Object<LogBeginConvoData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a join link was created for a group convo.
+///Event indicating a join link was created for a group convo.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogCreateJoinLinkData {
@@ -140,8 +143,9 @@ pub struct LogCreateMessageData {
     pub message: crate::types::Union<LogCreateMessageMessageRefs>,
     ///Profiles referred to in the message view. This isn't required for compatibility, because it was added later, but should generally be present.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub related_profiles:
-        core::option::Option<Vec<crate::chat::bsky::actor::defs::ProfileViewBasic>>,
+    pub related_profiles: core::option::Option<
+        Vec<crate::chat::bsky::actor::defs::ProfileViewBasic>,
+    >,
     pub rev: String,
 }
 pub type LogCreateMessage = crate::types::Object<LogCreateMessageData>;
@@ -154,7 +158,7 @@ pub struct LogDeleteMessageData {
     pub rev: String,
 }
 pub type LogDeleteMessage = crate::types::Object<LogDeleteMessageData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a join link was disabled for a group convo.
+///Event indicating a join link was disabled for a group convo.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogDisableJoinLinkData {
@@ -164,7 +168,7 @@ pub struct LogDisableJoinLinkData {
     pub rev: String,
 }
 pub type LogDisableJoinLink = crate::types::Object<LogDisableJoinLinkData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating info about group convo was edited.
+///Event indicating info about group convo was edited.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogEditGroupData {
@@ -174,7 +178,7 @@ pub struct LogEditGroupData {
     pub rev: String,
 }
 pub type LogEditGroup = crate::types::Object<LogEditGroupData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a settings about a join link for a group convo were edited.
+///Event indicating a settings about a join link for a group convo were edited.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogEditJoinLinkData {
@@ -184,7 +188,7 @@ pub struct LogEditJoinLinkData {
     pub rev: String,
 }
 pub type LogEditJoinLink = crate::types::Object<LogEditJoinLinkData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a join link was enabled for a group convo.
+///Event indicating a join link was enabled for a group convo.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogEnableJoinLinkData {
@@ -194,7 +198,7 @@ pub struct LogEnableJoinLinkData {
     pub rev: String,
 }
 pub type LogEnableJoinLink = crate::types::Object<LogEnableJoinLinkData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a join request was made to a group the viewer owns. Only the owner gets this.
+///Event indicating a join request was made to a group the viewer owns. Only the owner gets this.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogIncomingJoinRequestData {
@@ -212,7 +216,7 @@ pub struct LogLeaveConvoData {
     pub rev: String,
 }
 pub type LogLeaveConvo = crate::types::Object<LogLeaveConvoData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a group convo was locked.
+///Event indicating a group convo was locked.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogLockConvoData {
@@ -224,7 +228,7 @@ pub struct LogLockConvoData {
     pub rev: String,
 }
 pub type LogLockConvo = crate::types::Object<LogLockConvoData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a group convo was locked permanently.
+///Event indicating a group convo was locked permanently.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogLockConvoPermanentlyData {
@@ -236,7 +240,7 @@ pub struct LogLockConvoPermanentlyData {
     pub rev: String,
 }
 pub type LogLockConvoPermanently = crate::types::Object<LogLockConvoPermanentlyData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a member joined a group convo via join link. The member who was added gets a logBeginConvo (to create the convo) but also a logMemberJoin (to show the system message as the first message the user sees).
+///Event indicating a member joined a group convo via join link. The member who was added gets a logBeginConvo (to create the convo) but also a logMemberJoin (to show the system message as the first message the user sees).
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogMemberJoinData {
@@ -248,7 +252,7 @@ pub struct LogMemberJoinData {
     pub rev: String,
 }
 pub type LogMemberJoin = crate::types::Object<LogMemberJoinData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a member voluntarily left a group convo. The member who was removed gets a logLeaveConvo (to leave the convo) but not a logMemberLeave (because they already left, so can't see the system message).
+///Event indicating a member voluntarily left a group convo. The member who was removed gets a logLeaveConvo (to leave the convo) but not a logMemberLeave (because they already left, so can't see the system message).
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogMemberLeaveData {
@@ -268,7 +272,7 @@ pub struct LogMuteConvoData {
     pub rev: String,
 }
 pub type LogMuteConvo = crate::types::Object<LogMuteConvoData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a join request was made by the requester. Only requester actor gets this.
+///Event indicating a join request was made by the requester. Only requester actor gets this.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogOutgoingJoinRequestData {
@@ -276,7 +280,7 @@ pub struct LogOutgoingJoinRequestData {
     pub rev: String,
 }
 pub type LogOutgoingJoinRequest = crate::types::Object<LogOutgoingJoinRequestData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a convo was read up to a certain message.
+///Event indicating a convo was read up to a certain message.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogReadConvoData {
@@ -285,7 +289,7 @@ pub struct LogReadConvoData {
     pub rev: String,
 }
 pub type LogReadConvo = crate::types::Object<LogReadConvoData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating the group owner marked join requests as read. Only the owner gets this.
+///Event indicating the group owner marked join requests as read. Only the owner gets this.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogReadJoinRequestsData {
@@ -302,7 +306,7 @@ pub struct LogReadMessageData {
     pub rev: String,
 }
 pub type LogReadMessage = crate::types::Object<LogReadMessageData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a join request was rejected by the viewer. Only the owner gets this.
+///Event indicating a join request was rejected by the viewer. Only the owner gets this.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogRejectJoinRequestData {
@@ -312,7 +316,7 @@ pub struct LogRejectJoinRequestData {
     pub rev: String,
 }
 pub type LogRejectJoinRequest = crate::types::Object<LogRejectJoinRequestData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a member was removed from a group convo. The member who was removed gets a logLeaveConvo (to leave the convo) but not a logRemoveMember (because they already left, so can't see the system message).
+///Event indicating a member was removed from a group convo. The member who was removed gets a logLeaveConvo (to leave the convo) but not a logRemoveMember (because they already left, so can't see the system message).
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogRemoveMemberData {
@@ -333,12 +337,13 @@ pub struct LogRemoveReactionData {
     pub reaction: ReactionView,
     ///Profiles referred in the message and reaction views. This isn't required for compatibility, because it was added later, but should generally be present.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub related_profiles:
-        core::option::Option<Vec<crate::chat::bsky::actor::defs::ProfileViewBasic>>,
+    pub related_profiles: core::option::Option<
+        Vec<crate::chat::bsky::actor::defs::ProfileViewBasic>,
+    >,
     pub rev: String,
 }
 pub type LogRemoveReaction = crate::types::Object<LogRemoveReactionData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a group convo was unlocked.
+///Event indicating a group convo was unlocked.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogUnlockConvoData {
@@ -358,7 +363,7 @@ pub struct LogUnmuteConvoData {
     pub rev: String,
 }
 pub type LogUnmuteConvo = crate::types::Object<LogUnmuteConvoData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating a prospective member withdrew their join request. Only the owner gets this.
+///Event indicating a prospective member withdrew their join request. Only the owner gets this.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogWithdrawIncomingJoinRequestData {
@@ -367,15 +372,19 @@ pub struct LogWithdrawIncomingJoinRequestData {
     pub member: crate::chat::bsky::actor::defs::ProfileViewBasic,
     pub rev: String,
 }
-pub type LogWithdrawIncomingJoinRequest = crate::types::Object<LogWithdrawIncomingJoinRequestData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. Event indicating the viewer withdrew their own join request. Only requester actor gets this.
+pub type LogWithdrawIncomingJoinRequest = crate::types::Object<
+    LogWithdrawIncomingJoinRequestData,
+>;
+///Event indicating the viewer withdrew their own join request. Only requester actor gets this.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogWithdrawOutgoingJoinRequestData {
     pub convo_id: String,
     pub rev: String,
 }
-pub type LogWithdrawOutgoingJoinRequest = crate::types::Object<LogWithdrawOutgoingJoinRequestData>;
+pub type LogWithdrawOutgoingJoinRequest = crate::types::Object<
+    LogWithdrawOutgoingJoinRequestData,
+>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageAndReactionViewData {
@@ -383,6 +392,13 @@ pub struct MessageAndReactionViewData {
     pub reaction: ReactionView,
 }
 pub type MessageAndReactionView = crate::types::Object<MessageAndReactionViewData>;
+///Placeholder embedded in place of a reply's parent message when that parent was sent before the viewer joined the group convo. The viewer has no access to that history, so no message data is carried.
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageBeforeUserJoinedGroupViewData {}
+pub type MessageBeforeUserJoinedGroupView = crate::types::Object<
+    MessageBeforeUserJoinedGroupViewData,
+>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageInputData {
@@ -453,7 +469,7 @@ pub struct ReplyRefData {
     pub message_id: String,
 }
 pub type ReplyRef = crate::types::Object<ReplyRefData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating a user was added to the group convo.
+///System message indicating a user was added to the group convo.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataAddMemberData {
@@ -463,20 +479,24 @@ pub struct SystemMessageDataAddMemberData {
     ///Role the user was added to the group with. The role from 'member' will reflect the current data, not historical.
     pub role: crate::chat::bsky::actor::defs::MemberRole,
 }
-pub type SystemMessageDataAddMember = crate::types::Object<SystemMessageDataAddMemberData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating the group join link was created.
+pub type SystemMessageDataAddMember = crate::types::Object<
+    SystemMessageDataAddMemberData,
+>;
+///System message indicating the group join link was created.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataCreateJoinLinkData {}
-pub type SystemMessageDataCreateJoinLink =
-    crate::types::Object<SystemMessageDataCreateJoinLinkData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating the group join link was disabled.
+pub type SystemMessageDataCreateJoinLink = crate::types::Object<
+    SystemMessageDataCreateJoinLinkData,
+>;
+///System message indicating the group join link was disabled.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataDisableJoinLinkData {}
-pub type SystemMessageDataDisableJoinLink =
-    crate::types::Object<SystemMessageDataDisableJoinLinkData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating the group info was edited.
+pub type SystemMessageDataDisableJoinLink = crate::types::Object<
+    SystemMessageDataDisableJoinLinkData,
+>;
+///System message indicating the group info was edited.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataEditGroupData {
@@ -487,36 +507,44 @@ pub struct SystemMessageDataEditGroupData {
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub old_name: core::option::Option<String>,
 }
-pub type SystemMessageDataEditGroup = crate::types::Object<SystemMessageDataEditGroupData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating the group join link was edited.
+pub type SystemMessageDataEditGroup = crate::types::Object<
+    SystemMessageDataEditGroupData,
+>;
+///System message indicating the group join link was edited.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataEditJoinLinkData {}
-pub type SystemMessageDataEditJoinLink = crate::types::Object<SystemMessageDataEditJoinLinkData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating the group join link was enabled.
+pub type SystemMessageDataEditJoinLink = crate::types::Object<
+    SystemMessageDataEditJoinLinkData,
+>;
+///System message indicating the group join link was enabled.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataEnableJoinLinkData {}
-pub type SystemMessageDataEnableJoinLink =
-    crate::types::Object<SystemMessageDataEnableJoinLinkData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating the group convo was locked.
+pub type SystemMessageDataEnableJoinLink = crate::types::Object<
+    SystemMessageDataEnableJoinLinkData,
+>;
+///System message indicating the group convo was locked.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataLockConvoData {
     ///Current view of the member who locked the group.
     pub locked_by: SystemMessageReferredUser,
 }
-pub type SystemMessageDataLockConvo = crate::types::Object<SystemMessageDataLockConvoData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating the group convo was locked permanently.
+pub type SystemMessageDataLockConvo = crate::types::Object<
+    SystemMessageDataLockConvoData,
+>;
+///System message indicating the group convo was locked permanently.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataLockConvoPermanentlyData {
     ///Current view of the member who locked the group.
     pub locked_by: SystemMessageReferredUser,
 }
-pub type SystemMessageDataLockConvoPermanently =
-    crate::types::Object<SystemMessageDataLockConvoPermanentlyData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating a user joined the group convo via join link.
+pub type SystemMessageDataLockConvoPermanently = crate::types::Object<
+    SystemMessageDataLockConvoPermanentlyData,
+>;
+///System message indicating a user joined the group convo via join link.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataMemberJoinData {
@@ -528,16 +556,20 @@ pub struct SystemMessageDataMemberJoinData {
     ///Role the user was added to the group with. The role from 'member' will reflect the current data, not historical.
     pub role: crate::chat::bsky::actor::defs::MemberRole,
 }
-pub type SystemMessageDataMemberJoin = crate::types::Object<SystemMessageDataMemberJoinData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating a user voluntarily left the group convo.
+pub type SystemMessageDataMemberJoin = crate::types::Object<
+    SystemMessageDataMemberJoinData,
+>;
+///System message indicating a user voluntarily left the group convo.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataMemberLeaveData {
     ///Current view of the member who left the group.
     pub member: SystemMessageReferredUser,
 }
-pub type SystemMessageDataMemberLeave = crate::types::Object<SystemMessageDataMemberLeaveData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating a user was removed from the group convo.
+pub type SystemMessageDataMemberLeave = crate::types::Object<
+    SystemMessageDataMemberLeaveData,
+>;
+///System message indicating a user was removed from the group convo.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataRemoveMemberData {
@@ -545,22 +577,25 @@ pub struct SystemMessageDataRemoveMemberData {
     pub member: SystemMessageReferredUser,
     pub removed_by: SystemMessageReferredUser,
 }
-pub type SystemMessageDataRemoveMember = crate::types::Object<SystemMessageDataRemoveMemberData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here]. System message indicating the group convo was unlocked.
+pub type SystemMessageDataRemoveMember = crate::types::Object<
+    SystemMessageDataRemoveMemberData,
+>;
+///System message indicating the group convo was unlocked.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageDataUnlockConvoData {
     ///Current view of the member who unlocked the group.
     pub unlocked_by: SystemMessageReferredUser,
 }
-pub type SystemMessageDataUnlockConvo = crate::types::Object<SystemMessageDataUnlockConvoData>;
+pub type SystemMessageDataUnlockConvo = crate::types::Object<
+    SystemMessageDataUnlockConvoData,
+>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageReferredUserData {
     pub did: crate::types::string::Did,
 }
 pub type SystemMessageReferredUser = crate::types::Object<SystemMessageReferredUserData>;
-///[NOTE: This is under active development and should be considered unstable while this note is here].
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemMessageViewData {
@@ -669,6 +704,8 @@ pub enum MessageViewReplyToRefs {
     MessageView(Box<MessageView>),
     #[serde(rename = "chat.bsky.convo.defs#deletedMessageView")]
     DeletedMessageView(Box<DeletedMessageView>),
+    #[serde(rename = "chat.bsky.convo.defs#messageBeforeUserJoinedGroupView")]
+    MessageBeforeUserJoinedGroupView(Box<MessageBeforeUserJoinedGroupView>),
 }
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "$type")]

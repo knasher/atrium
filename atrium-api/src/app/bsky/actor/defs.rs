@@ -19,6 +19,9 @@ pub type BskyAppProgressGuide = crate::types::Object<BskyAppProgressGuideData>;
 pub struct BskyAppStatePrefData {
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub active_progress_guide: core::option::Option<BskyAppProgressGuide>,
+    ///Indicates if the user is participating in the beta features program.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub is_beta_user: core::option::Option<bool>,
     ///Storage for NUXs the user has encountered.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub nuxs: core::option::Option<Vec<crate::app::bsky::actor::defs::Nux>>,
@@ -183,13 +186,17 @@ pub struct PostInteractionSettingsPrefData {
         Vec<crate::types::Union<PostInteractionSettingsPrefThreadgateAllowRulesItem>>,
     >,
 }
-pub type PostInteractionSettingsPref = crate::types::Object<PostInteractionSettingsPrefData>;
+pub type PostInteractionSettingsPref = crate::types::Object<
+    PostInteractionSettingsPrefData,
+>;
 pub type Preferences = Vec<crate::types::Union<PreferencesItem>>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileAssociatedData {
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub activity_subscription: core::option::Option<ProfileAssociatedActivitySubscription>,
+    pub activity_subscription: core::option::Option<
+        ProfileAssociatedActivitySubscription,
+    >,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub chat: core::option::Option<ProfileAssociatedChat>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
@@ -209,8 +216,9 @@ pub type ProfileAssociated = crate::types::Object<ProfileAssociatedData>;
 pub struct ProfileAssociatedActivitySubscriptionData {
     pub allow_subscriptions: String,
 }
-pub type ProfileAssociatedActivitySubscription =
-    crate::types::Object<ProfileAssociatedActivitySubscriptionData>;
+pub type ProfileAssociatedActivitySubscription = crate::types::Object<
+    ProfileAssociatedActivitySubscriptionData,
+>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileAssociatedChatData {
@@ -313,8 +321,9 @@ pub struct ProfileViewDetailedData {
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub indexed_at: core::option::Option<crate::types::string::Datetime>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub joined_via_starter_pack:
-        core::option::Option<crate::app::bsky::graph::defs::StarterPackViewBasic>,
+    pub joined_via_starter_pack: core::option::Option<
+        crate::app::bsky::graph::defs::StarterPackViewBasic,
+    >,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub labels: core::option::Option<Vec<crate::com::atproto::label::defs::Label>>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
@@ -438,14 +447,17 @@ pub type VerificationView = crate::types::Object<VerificationViewData>;
 pub struct ViewerStateData {
     ///This property is present only in selected cases, as an optimization.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub activity_subscription:
-        core::option::Option<crate::app::bsky::notification::defs::ActivitySubscription>,
+    pub activity_subscription: core::option::Option<
+        crate::app::bsky::notification::defs::ActivitySubscription,
+    >,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub blocked_by: core::option::Option<bool>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub blocking: core::option::Option<String>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub blocking_by_list: core::option::Option<crate::app::bsky::graph::defs::ListViewBasic>,
+    pub blocking_by_list: core::option::Option<
+        crate::app::bsky::graph::defs::ListViewBasic,
+    >,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub followed_by: core::option::Option<String>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
@@ -453,10 +465,19 @@ pub struct ViewerStateData {
     ///This property is present only in selected cases, as an optimization.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub known_followers: core::option::Option<KnownFollowers>,
+    ///Whether the account is fully muted, directly or via a mutelist. False when the mute is scoped to specific kinds; see mutedOnlyReposts and mutedOnlyQuoteposts.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub muted: core::option::Option<bool>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub muted_by_list: core::option::Option<crate::app::bsky::graph::defs::ListViewBasic>,
+    pub muted_by_list: core::option::Option<
+        crate::app::bsky::graph::defs::ListViewBasic,
+    >,
+    ///Whether the account's quote posts are muted. Scoped mutes are exclusive with muted: this can be true while muted is false. If muted is true, this will be false.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub muted_only_quoteposts: core::option::Option<bool>,
+    ///Whether the account's reposts are muted. Scoped mutes are exclusive with muted: this can be true while muted is false. If muted is true, this will be false.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub muted_only_reposts: core::option::Option<bool>,
 }
 pub type ViewerState = crate::types::Object<ViewerStateData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -469,11 +490,17 @@ pub enum PostInteractionSettingsPrefPostgateEmbeddingRulesItem {
 #[serde(tag = "$type")]
 pub enum PostInteractionSettingsPrefThreadgateAllowRulesItem {
     #[serde(rename = "app.bsky.feed.threadgate#mentionRule")]
-    AppBskyFeedThreadgateMentionRule(Box<crate::app::bsky::feed::threadgate::MentionRule>),
+    AppBskyFeedThreadgateMentionRule(
+        Box<crate::app::bsky::feed::threadgate::MentionRule>,
+    ),
     #[serde(rename = "app.bsky.feed.threadgate#followerRule")]
-    AppBskyFeedThreadgateFollowerRule(Box<crate::app::bsky::feed::threadgate::FollowerRule>),
+    AppBskyFeedThreadgateFollowerRule(
+        Box<crate::app::bsky::feed::threadgate::FollowerRule>,
+    ),
     #[serde(rename = "app.bsky.feed.threadgate#followingRule")]
-    AppBskyFeedThreadgateFollowingRule(Box<crate::app::bsky::feed::threadgate::FollowingRule>),
+    AppBskyFeedThreadgateFollowingRule(
+        Box<crate::app::bsky::feed::threadgate::FollowingRule>,
+    ),
     #[serde(rename = "app.bsky.feed.threadgate#listRule")]
     AppBskyFeedThreadgateListRule(Box<crate::app::bsky::feed::threadgate::ListRule>),
 }

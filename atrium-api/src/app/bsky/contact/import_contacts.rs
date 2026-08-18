@@ -14,7 +14,9 @@ pub type Input = crate::types::Object<InputData>;
 #[serde(rename_all = "camelCase")]
 pub struct OutputData {
     ///The users that matched during import and their indexes on the input contacts, so the client can correlate with its local list.
-    pub matches_and_contact_indexes: Vec<crate::app::bsky::contact::defs::MatchAndContactIndex>,
+    pub matches_and_contact_indexes: Vec<
+        crate::app::bsky::contact::defs::MatchAndContactIndex,
+    >,
 }
 pub type Output = crate::types::Object<OutputData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]

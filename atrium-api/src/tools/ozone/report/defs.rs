@@ -120,8 +120,7 @@ pub const REASON_CHILD_SAFETY_CSAM: &str = "tools.ozone.report.defs#reasonChildS
 ///Grooming or predatory behavior. These reports will be sent only be sent to the application's Moderation Authority.
 pub const REASON_CHILD_SAFETY_GROOM: &str = "tools.ozone.report.defs#reasonChildSafetyGroom";
 ///Harassment or bullying of minors
-pub const REASON_CHILD_SAFETY_HARASSMENT: &str =
-    "tools.ozone.report.defs#reasonChildSafetyHarassment";
+pub const REASON_CHILD_SAFETY_HARASSMENT: &str = "tools.ozone.report.defs#reasonChildSafetyHarassment";
 ///Other child safety. These reports will be sent only be sent to the application's Moderation Authority.
 pub const REASON_CHILD_SAFETY_OTHER: &str = "tools.ozone.report.defs#reasonChildSafetyOther";
 ///Privacy violation involving a minor
@@ -129,8 +128,7 @@ pub const REASON_CHILD_SAFETY_PRIVACY: &str = "tools.ozone.report.defs#reasonChi
 ///Doxxing
 pub const REASON_HARASSMENT_DOXXING: &str = "tools.ozone.report.defs#reasonHarassmentDoxxing";
 ///Hate speech
-pub const REASON_HARASSMENT_HATE_SPEECH: &str =
-    "tools.ozone.report.defs#reasonHarassmentHateSpeech";
+pub const REASON_HARASSMENT_HATE_SPEECH: &str = "tools.ozone.report.defs#reasonHarassmentHateSpeech";
 ///Other harassing or hateful content
 pub const REASON_HARASSMENT_OTHER: &str = "tools.ozone.report.defs#reasonHarassmentOther";
 ///Targeted harassment
@@ -142,8 +140,7 @@ pub const REASON_MISLEADING_BOT: &str = "tools.ozone.report.defs#reasonMisleadin
 ///False information about elections
 pub const REASON_MISLEADING_ELECTIONS: &str = "tools.ozone.report.defs#reasonMisleadingElections";
 ///Impersonation
-pub const REASON_MISLEADING_IMPERSONATION: &str =
-    "tools.ozone.report.defs#reasonMisleadingImpersonation";
+pub const REASON_MISLEADING_IMPERSONATION: &str = "tools.ozone.report.defs#reasonMisleadingImpersonation";
 ///Other misleading content
 pub const REASON_MISLEADING_OTHER: &str = "tools.ozone.report.defs#reasonMisleadingOther";
 ///Scam
@@ -186,14 +183,11 @@ pub type ReasonType = String;
 ///Animal welfare violations
 pub const REASON_VIOLENCE_ANIMAL: &str = "tools.ozone.report.defs#reasonViolenceAnimal";
 ///Extremist content. These reports will be sent only be sent to the application's Moderation Authority.
-pub const REASON_VIOLENCE_EXTREMIST_CONTENT: &str =
-    "tools.ozone.report.defs#reasonViolenceExtremistContent";
+pub const REASON_VIOLENCE_EXTREMIST_CONTENT: &str = "tools.ozone.report.defs#reasonViolenceExtremistContent";
 ///Glorification of violence
-pub const REASON_VIOLENCE_GLORIFICATION: &str =
-    "tools.ozone.report.defs#reasonViolenceGlorification";
+pub const REASON_VIOLENCE_GLORIFICATION: &str = "tools.ozone.report.defs#reasonViolenceGlorification";
 ///Graphic violent content
-pub const REASON_VIOLENCE_GRAPHIC_CONTENT: &str =
-    "tools.ozone.report.defs#reasonViolenceGraphicContent";
+pub const REASON_VIOLENCE_GRAPHIC_CONTENT: &str = "tools.ozone.report.defs#reasonViolenceGraphicContent";
 ///Other violent content
 pub const REASON_VIOLENCE_OTHER: &str = "tools.ozone.report.defs#reasonViolenceOther";
 ///Threats or incitement
@@ -266,7 +260,9 @@ pub struct ReportViewData {
     pub action_note: core::option::Option<String>,
     ///Optional: expanded action events
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub actions: core::option::Option<Vec<crate::tools::ozone::moderation::defs::ModEventView>>,
+    pub actions: core::option::Option<
+        Vec<crate::tools::ozone::moderation::defs::ModEventView>,
+    >,
     ///Information about moderator currently assigned to this report (if any)
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub assignment: core::option::Option<ReportAssignment>,
@@ -279,6 +275,9 @@ pub struct ReportViewData {
     pub event_id: i64,
     ///Report ID
     pub id: i64,
+    ///Whether this report was emitted by automated tooling.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub is_automated: core::option::Option<bool>,
     ///Whether this report is muted. A report is muted if the reporter was muted or the subject was muted at the time the report was created.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub is_muted: core::option::Option<bool>,
@@ -303,8 +302,9 @@ pub struct ReportViewData {
     pub subject: crate::tools::ozone::moderation::defs::SubjectView,
     ///Current status of the reported subject
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub subject_status:
-        core::option::Option<crate::tools::ozone::moderation::defs::SubjectStatusView>,
+    pub subject_status: core::option::Option<
+        crate::tools::ozone::moderation::defs::SubjectStatusView,
+    >,
     ///When the report was last updated
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub updated_at: core::option::Option<crate::types::string::Datetime>,

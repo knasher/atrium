@@ -15,13 +15,16 @@ pub struct DraftData {
     pub langs: core::option::Option<Vec<crate::types::string::Language>>,
     ///Embedding rules for the postgates to be created when this draft is published.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub postgate_embedding_rules:
-        core::option::Option<Vec<crate::types::Union<DraftPostgateEmbeddingRulesItem>>>,
+    pub postgate_embedding_rules: core::option::Option<
+        Vec<crate::types::Union<DraftPostgateEmbeddingRulesItem>>,
+    >,
     ///Array of draft posts that compose this draft.
     pub posts: Vec<DraftPost>,
     ///Allow-rules for the threadgate to be created when this draft is published.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub threadgate_allow: core::option::Option<Vec<crate::types::Union<DraftThreadgateAllowItem>>>,
+    pub threadgate_allow: core::option::Option<
+        Vec<crate::types::Union<DraftThreadgateAllowItem>>,
+    >,
 }
 pub type Draft = crate::types::Object<DraftData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -141,11 +144,17 @@ pub enum DraftPostgateEmbeddingRulesItem {
 #[serde(tag = "$type")]
 pub enum DraftThreadgateAllowItem {
     #[serde(rename = "app.bsky.feed.threadgate#mentionRule")]
-    AppBskyFeedThreadgateMentionRule(Box<crate::app::bsky::feed::threadgate::MentionRule>),
+    AppBskyFeedThreadgateMentionRule(
+        Box<crate::app::bsky::feed::threadgate::MentionRule>,
+    ),
     #[serde(rename = "app.bsky.feed.threadgate#followerRule")]
-    AppBskyFeedThreadgateFollowerRule(Box<crate::app::bsky::feed::threadgate::FollowerRule>),
+    AppBskyFeedThreadgateFollowerRule(
+        Box<crate::app::bsky::feed::threadgate::FollowerRule>,
+    ),
     #[serde(rename = "app.bsky.feed.threadgate#followingRule")]
-    AppBskyFeedThreadgateFollowingRule(Box<crate::app::bsky::feed::threadgate::FollowingRule>),
+    AppBskyFeedThreadgateFollowingRule(
+        Box<crate::app::bsky::feed::threadgate::FollowingRule>,
+    ),
     #[serde(rename = "app.bsky.feed.threadgate#listRule")]
     AppBskyFeedThreadgateListRule(Box<crate::app::bsky::feed::threadgate::ListRule>),
 }

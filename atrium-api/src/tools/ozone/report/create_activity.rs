@@ -6,6 +6,9 @@ pub const NSID: &str = "tools.ozone.report.createActivity";
 pub struct InputData {
     ///The type of activity to record.
     pub activity: crate::types::Union<InputActivityRefs>,
+    ///ID of the report moderation event. Resolves to the report created from that event. Exactly one of reportId or eventId must be provided.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub event_id: core::option::Option<i64>,
     ///Optional moderator-only note. Not visible to reporters.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub internal_note: core::option::Option<String>,
@@ -15,8 +18,9 @@ pub struct InputData {
     ///Optional public-facing note, potentially visible to the reporter.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub public_note: core::option::Option<String>,
-    ///ID of the report to record activity on
-    pub report_id: i64,
+    ///ID of the report to record activity on. Exactly one of reportId or eventId must be provided.
+    #[serde(skip_serializing_if = "core::option::Option::is_none")]
+    pub report_id: core::option::Option<i64>,
 }
 pub type Input = crate::types::Object<InputData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -28,7 +32,7 @@ pub type Output = crate::types::Object<OutputData>;
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "error", content = "message")]
 pub enum Error {
-    ///No report exists with the given reportId
+    ///No report exists with the given reportId or eventId
     ReportNotFound(Option<String>),
     ///The requested state transition is not permitted from the report's current status
     InvalidStateTransition(Option<String>),
@@ -64,7 +68,9 @@ impl std::fmt::Display for Error {
 #[serde(tag = "$type")]
 pub enum InputActivityRefs {
     #[serde(rename = "tools.ozone.report.defs#queueActivity")]
-    ToolsOzoneReportDefsQueueActivity(Box<crate::tools::ozone::report::defs::QueueActivity>),
+    ToolsOzoneReportDefsQueueActivity(
+        Box<crate::tools::ozone::report::defs::QueueActivity>,
+    ),
     #[serde(rename = "tools.ozone.report.defs#assignmentActivity")]
     ToolsOzoneReportDefsAssignmentActivity(
         Box<crate::tools::ozone::report::defs::AssignmentActivity>,
@@ -74,9 +80,15 @@ pub enum InputActivityRefs {
         Box<crate::tools::ozone::report::defs::EscalationActivity>,
     ),
     #[serde(rename = "tools.ozone.report.defs#closeActivity")]
-    ToolsOzoneReportDefsCloseActivity(Box<crate::tools::ozone::report::defs::CloseActivity>),
+    ToolsOzoneReportDefsCloseActivity(
+        Box<crate::tools::ozone::report::defs::CloseActivity>,
+    ),
     #[serde(rename = "tools.ozone.report.defs#reopenActivity")]
-    ToolsOzoneReportDefsReopenActivity(Box<crate::tools::ozone::report::defs::ReopenActivity>),
+    ToolsOzoneReportDefsReopenActivity(
+        Box<crate::tools::ozone::report::defs::ReopenActivity>,
+    ),
     #[serde(rename = "tools.ozone.report.defs#noteActivity")]
-    ToolsOzoneReportDefsNoteActivity(Box<crate::tools::ozone::report::defs::NoteActivity>),
+    ToolsOzoneReportDefsNoteActivity(
+        Box<crate::tools::ozone::report::defs::NoteActivity>,
+    ),
 }

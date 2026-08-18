@@ -382,6 +382,7 @@ mod tests {
                         body.extend(serde_json::to_vec(
                             &crate::com::atproto::server::describe_server::OutputData {
                                 available_user_domains: Vec::new(),
+                                blob_upload_limit: None,
                                 contact: None,
                                 did: "did:web:example.com".parse().expect("valid"),
                                 invite_code_required: None,

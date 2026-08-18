@@ -58,7 +58,9 @@ pub struct GeneratorViewData {
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub description: core::option::Option<String>,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub description_facets: core::option::Option<Vec<crate::app::bsky::richtext::facet::Main>>,
+    pub description_facets: core::option::Option<
+        Vec<crate::app::bsky::richtext::facet::Main>,
+    >,
     pub did: crate::types::string::Did,
     pub display_name: String,
     pub indexed_at: crate::types::string::Datetime,
@@ -163,7 +165,9 @@ pub type ReasonRepost = crate::types::Object<ReasonRepostData>;
 pub struct ReplyRefData {
     ///When parent is a reply to another post, this is the author of that post.
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub grandparent_author: core::option::Option<crate::app::bsky::actor::defs::ProfileViewBasic>,
+    pub grandparent_author: core::option::Option<
+        crate::app::bsky::actor::defs::ProfileViewBasic,
+    >,
     pub parent: crate::types::Union<ReplyRefParentRefs>,
     pub root: crate::types::Union<ReplyRefRootRefs>,
 }
@@ -208,7 +212,9 @@ pub struct ThreadViewPostData {
     pub parent: core::option::Option<crate::types::Union<ThreadViewPostParentRefs>>,
     pub post: PostView,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
-    pub replies: core::option::Option<Vec<crate::types::Union<ThreadViewPostRepliesItem>>>,
+    pub replies: core::option::Option<
+        Vec<crate::types::Union<ThreadViewPostRepliesItem>>,
+    >,
     #[serde(skip_serializing_if = "core::option::Option::is_none")]
     pub thread_context: core::option::Option<ThreadContext>,
 }
@@ -268,7 +274,9 @@ pub enum PostViewEmbedRefs {
     #[serde(rename = "app.bsky.embed.record#view")]
     AppBskyEmbedRecordView(Box<crate::app::bsky::embed::record::View>),
     #[serde(rename = "app.bsky.embed.recordWithMedia#view")]
-    AppBskyEmbedRecordWithMediaView(Box<crate::app::bsky::embed::record_with_media::View>),
+    AppBskyEmbedRecordWithMediaView(
+        Box<crate::app::bsky::embed::record_with_media::View>,
+    ),
 }
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "$type")]

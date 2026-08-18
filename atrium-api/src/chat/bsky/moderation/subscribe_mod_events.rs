@@ -136,8 +136,9 @@ pub struct EventGroupChatJoinRequestApprovedData {
     ///The DID of the member whose request was approved.
     pub subject_did: crate::types::string::Did,
 }
-pub type EventGroupChatJoinRequestApproved =
-    crate::types::Object<EventGroupChatJoinRequestApprovedData>;
+pub type EventGroupChatJoinRequestApproved = crate::types::Object<
+    EventGroupChatJoinRequestApprovedData,
+>;
 ///Fired when a join request is rejected by the group owner.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -157,8 +158,9 @@ pub struct EventGroupChatJoinRequestRejectedData {
     ///The DID of the member whose request was rejected.
     pub subject_did: crate::types::string::Did,
 }
-pub type EventGroupChatJoinRequestRejected =
-    crate::types::Object<EventGroupChatJoinRequestRejectedData>;
+pub type EventGroupChatJoinRequestRejected = crate::types::Object<
+    EventGroupChatJoinRequestRejectedData,
+>;
 ///Fired when a member is added to a group chat. Note that members are added in the 'request' state.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -204,7 +206,9 @@ pub struct EventGroupChatMemberJoinedData {
     ///Whether the joining member follows the group owner.
     pub subject_follows_owner: bool,
 }
-pub type EventGroupChatMemberJoined = crate::types::Object<EventGroupChatMemberJoinedData>;
+pub type EventGroupChatMemberJoined = crate::types::Object<
+    EventGroupChatMemberJoinedData,
+>;
 ///Fired when a member leaves or is removed from a group chat.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -285,15 +289,25 @@ pub enum Message {
     EventConvoFirstMessage(Box<EventConvoFirstMessage>),
     #[serde(rename = "chat.bsky.moderation.subscribeModEvents#eventGroupChatCreated")]
     EventGroupChatCreated(Box<EventGroupChatCreated>),
-    #[serde(rename = "chat.bsky.moderation.subscribeModEvents#eventGroupChatMemberAdded")]
+    #[serde(
+        rename = "chat.bsky.moderation.subscribeModEvents#eventGroupChatMemberAdded"
+    )]
     EventGroupChatMemberAdded(Box<EventGroupChatMemberAdded>),
-    #[serde(rename = "chat.bsky.moderation.subscribeModEvents#eventGroupChatMemberJoined")]
+    #[serde(
+        rename = "chat.bsky.moderation.subscribeModEvents#eventGroupChatMemberJoined"
+    )]
     EventGroupChatMemberJoined(Box<EventGroupChatMemberJoined>),
-    #[serde(rename = "chat.bsky.moderation.subscribeModEvents#eventGroupChatJoinRequest")]
+    #[serde(
+        rename = "chat.bsky.moderation.subscribeModEvents#eventGroupChatJoinRequest"
+    )]
     EventGroupChatJoinRequest(Box<EventGroupChatJoinRequest>),
-    #[serde(rename = "chat.bsky.moderation.subscribeModEvents#eventGroupChatJoinRequestApproved")]
+    #[serde(
+        rename = "chat.bsky.moderation.subscribeModEvents#eventGroupChatJoinRequestApproved"
+    )]
     EventGroupChatJoinRequestApproved(Box<EventGroupChatJoinRequestApproved>),
-    #[serde(rename = "chat.bsky.moderation.subscribeModEvents#eventGroupChatJoinRequestRejected")]
+    #[serde(
+        rename = "chat.bsky.moderation.subscribeModEvents#eventGroupChatJoinRequestRejected"
+    )]
     EventGroupChatJoinRequestRejected(Box<EventGroupChatJoinRequestRejected>),
     #[serde(rename = "chat.bsky.moderation.subscribeModEvents#eventChatAccepted")]
     EventChatAccepted(Box<EventChatAccepted>),
