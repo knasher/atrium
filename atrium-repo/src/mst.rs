@@ -126,7 +126,7 @@ mod algos {
             let node = Node::read_from(&mut bs, node_cid).await?;
             if !seen.insert(node_cid) {
                 // This CID was already seen. There is a cycle in the graph.
-                panic!();
+                return Err(Error::Cycle(node_cid));
             }
 
             match f(node.clone(), node_cid)? {
@@ -754,11 +754,16 @@ impl<S: AsyncBlockStoreRead> Tree<S> {
     pub fn entries(&mut self) -> impl Stream<Item = Result<(String, Cid), Error>> + '_ {
         // Start from the root of the tree.
         let mut stack = vec![Located::InSubtree(self.root)];
+        // A node reached twice means a cycle, which would otherwise loop forever.
+        let mut seen = HashSet::new();
 
         try_stream! {
             while let Some(e) = stack.pop() {
                 match e {
                     Located::InSubtree(cid) => {
+                        if !seen.insert(cid) {
+                            Err(Error::Cycle(cid))?;
+                        }
                         let node = Node::read_from(&mut self.storage, cid).await?;
                         for entry in node.entries.iter().rev() {
                             match entry {
@@ -787,11 +792,16 @@ impl<S: AsyncBlockStoreRead> Tree<S> {
     ) -> impl Stream<Item = Result<(String, Cid), Error>> + 'a {
         // Start from the root of the tree.
         let mut stack = vec![Located::InSubtree(self.root)];
+        // A node reached twice means a cycle, which would otherwise loop forever.
+        let mut seen = HashSet::new();
 
         try_stream! {
             while let Some(e) = stack.pop() {
                 match e {
                     Located::InSubtree(cid) => {
+                        if !seen.insert(cid) {
+                            Err(Error::Cycle(cid))?;
+                        }
                         let node = Node::read_from(&mut self.storage, cid).await?;
                         for entry in node.entries_with_prefix(prefix).rev() {
                             match entry {
@@ -1131,6 +1141,8 @@ pub enum Error {
     BlockStore(#[from] crate::blockstore::Error),
     #[error("serde_ipld_dagcbor decoding error: {0}")]
     Parse(#[from] serde_ipld_dagcbor::DecodeError<Infallible>),
+    #[error("MST node {0} is reachable from itself")]
+    Cycle(Cid),
 }
 
 #[cfg(test)]
@@ -1520,5 +1532,68 @@ mod test {
                 "com.example.bbcd/2222222222224",
             ]
         );
+    }
+
+    /// Serves whatever bytes it holds under whatever CID, unhashed.
+    /// `MemoryBlockStore` hashes on write, so it cannot hold a node stored
+    /// under a CID its bytes do not hash to.
+    struct RawStore(std::collections::HashMap<Cid, Vec<u8>>);
+
+    impl AsyncBlockStoreRead for RawStore {
+        async fn read_block_into(
+            &mut self,
+            cid: Cid,
+            contents: &mut Vec<u8>,
+        ) -> Result<(), crate::blockstore::Error> {
+            contents.clear();
+            contents
+                .extend_from_slice(self.0.get(&cid).ok_or(crate::blockstore::Error::CidNotFound)?);
+            Ok(())
+        }
+    }
+
+    /// An MST node whose left subtree is itself, stored under an
+    /// identity-hash CID so no hash check can catch the lie. Its one leaf
+    /// sorts high, so a walk towards any lower key goes left into itself.
+    fn self_referencing_node() -> (Cid, RawStore) {
+        let cid = Cid::new_v1(DAG_CBOR, Multihash::wrap(0x00, b"self-referencing node").unwrap());
+        let node = schema::Node {
+            left: Some(cid),
+            entries: vec![schema::TreeEntry {
+                prefix_len: 0,
+                key_suffix: b"com.example.record/3jqfcqzm4fd2j".to_vec(),
+                value: value_cid(),
+                tree: None,
+            }],
+        };
+        let bytes = serde_ipld_dagcbor::to_vec(&node).unwrap();
+        (cid, RawStore([(cid, bytes)].into_iter().collect()))
+    }
+
+    #[tokio::test]
+    async fn get_through_a_cycle_is_an_error() {
+        let (cid, store) = self_referencing_node();
+        let mut tree = Tree::open(store, cid);
+
+        let err = tree.get("com.example.record/3jqfcqzm3fo2j").await.unwrap_err();
+        assert!(matches!(err, Error::Cycle(c) if c == cid), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn entries_through_a_cycle_end_in_an_error() {
+        let (cid, store) = self_referencing_node();
+        let mut tree = Tree::open(store, cid);
+
+        let items: Vec<_> = tree.entries().collect().await;
+        assert!(matches!(items.as_slice(), [Err(Error::Cycle(c))] if *c == cid), "{items:?}");
+    }
+
+    #[tokio::test]
+    async fn prefixed_entries_through_a_cycle_end_in_an_error() {
+        let (cid, store) = self_referencing_node();
+        let mut tree = Tree::open(store, cid);
+
+        let items: Vec<_> = tree.entries_prefixed("").collect().await;
+        assert!(matches!(items.as_slice(), [Err(Error::Cycle(c))] if *c == cid), "{items:?}");
     }
 }
