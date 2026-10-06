@@ -912,6 +912,13 @@ impl Node {
     pub fn parse(bytes: &[u8]) -> Result<Self, Error> {
         let node: schema::Node = serde_ipld_dagcbor::from_slice(bytes)?;
 
+        // Checked before any key is rebuilt, so a node can never cost more
+        // than `MAX_KEY_BYTES_PER_BLOCK_BYTE` times its own length in keys.
+        let key_bytes = key_bytes(&node);
+        if key_bytes > MAX_KEY_BYTES_PER_BLOCK_BYTE.saturating_mul(bytes.len()) {
+            return Err(Error::NodeKeysTooLarge { key_bytes, block_len: bytes.len() });
+        }
+
         let mut entries = vec![];
         if let Some(left) = &node.left {
             entries.push(NodeEntry::Tree(*left));
@@ -1113,6 +1120,58 @@ fn check_key_len(key: &str) -> Result<(), Error> {
     Ok(())
 }
 
+/// The most key bytes an MST node may rebuild per byte of its block.
+///
+/// Prefix compression lets each entry reuse all but one byte of the key
+/// before it, so a node can rebuild far more key bytes than it stores: a
+/// 23-byte entry pointing at a tiny identity-hash value can rebuild a
+/// 1023-byte key, about 45 times its size, and a node full of them costs
+/// that multiple of its block in memory.
+///
+/// 19 is derived, not measured, so no honest node can reach it. A key is at
+/// most [`MAX_KEY_LEN`] (1024) bytes, and every honest entry stores its
+/// record's full SHA-256 CID, so the smallest an honest entry can be is 56
+/// bytes: the map header and four one-letter keys (9), `p` (3), a suffix of
+/// at least one byte, since keys are distinct and in order (2), the 41-byte
+/// CID link, and a null `t` (1). No honest entry, and so no honest node,
+/// rebuilds more than 1024 / 56 ≈ 18.3 key bytes per block byte.
+const MAX_KEY_BYTES_PER_BLOCK_BYTE: usize = 19;
+
+/// The key bytes a node rebuilds: the sum, over its entries, of the prefix
+/// each reuses and the suffix each stores. Computed without rebuilding any
+/// key, so it is safe to call on a node before deciding to parse it.
+fn key_bytes(node: &schema::Node) -> usize {
+    node.entries
+        .iter()
+        .map(|e| e.prefix_len.saturating_add(e.key_suffix.len()))
+        .fold(0, usize::saturating_add)
+}
+
+/// Size figures for one MST node block, without rebuilding its keys.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NodeStats {
+    /// The block's length in bytes.
+    pub block_len: usize,
+    /// The node's entries (leaves), not counting subtree links.
+    pub entries: usize,
+    /// The sum of `prefix_len + key_suffix.len()` over the node's entries:
+    /// the key bytes parsing it would rebuild. This is the figure
+    /// [`Node::parse`] holds to `MAX_KEY_BYTES_PER_BLOCK_BYTE` times
+    /// `block_len`.
+    pub key_bytes: usize,
+}
+
+/// Measure an MST node block the way parsing it is limited, without
+/// parsing it, so callers can see how far real nodes sit from the limit.
+pub fn node_stats(block: &[u8]) -> Result<NodeStats, Error> {
+    let node: schema::Node = serde_ipld_dagcbor::from_slice(block)?;
+    Ok(NodeStats {
+        block_len: block.len(),
+        entries: node.entries.len(),
+        key_bytes: key_bytes(&node),
+    })
+}
+
 impl TreeEntry {
     fn parse(entry: schema::TreeEntry, prev_key: &[u8]) -> Result<Self, Error> {
         // Checked before the key is rebuilt. Prefix compression lets each entry
@@ -1156,6 +1215,12 @@ pub enum Error {
     Parse(#[from] serde_ipld_dagcbor::DecodeError<Infallible>),
     #[error("MST key of {0} bytes exceeds the {max}-byte limit", max = MAX_KEY_LEN)]
     KeyTooLong(usize),
+    #[error(
+        "MST node rebuilds {key_bytes} key bytes from a {block_len}-byte block, over the \
+         {max}x limit",
+        max = MAX_KEY_BYTES_PER_BLOCK_BYTE
+    )]
+    NodeKeysTooLarge { key_bytes: usize, block_len: usize },
 }
 
 #[cfg(test)]
@@ -1592,5 +1657,84 @@ mod test {
         // The tree is still readable and writable.
         tree.add("com.example.record/b", value_cid()).await.unwrap();
         assert_eq!(tree.get("com.example.record/b").await.unwrap(), Some(value_cid()));
+    }
+
+    /// An identity-hash CID with an empty digest, the smallest link an entry
+    /// can carry. A parse never fetches a value, so nothing checks it.
+    fn tiny_cid() -> Cid {
+        Cid::new_v1(0x55, Multihash::wrap(0x00, &[]).unwrap())
+    }
+
+    /// A node of one 1,000-byte key, then one entry per `ps` that reuses
+    /// that many bytes of the key before it and adds one more.
+    fn node_reusing(ps: &[usize]) -> Vec<u8> {
+        let entry = |prefix_len, key_suffix| schema::TreeEntry {
+            prefix_len,
+            key_suffix,
+            value: tiny_cid(),
+            tree: None,
+        };
+        let mut entries = vec![entry(0, vec![b'a'; 1000])];
+        entries.extend(ps.iter().map(|p| entry(*p, vec![b'b'])));
+        serde_ipld_dagcbor::to_vec(&schema::Node { left: None, entries }).unwrap()
+    }
+
+    /// Prefixes for `n` entries that make `node_reusing` rebuild exactly
+    /// `MAX_KEY_BYTES_PER_BLOCK_BYTE` times its own length. Each stays
+    /// between 256 and 1,000, so it encodes in three bytes whatever its
+    /// value, and the block's length does not move as they change. They
+    /// never rise, so each fits within the key before it.
+    fn prefixes_at_the_limit(n: usize) -> Vec<usize> {
+        let len = node_reusing(&vec![256; n]).len();
+        let sum = MAX_KEY_BYTES_PER_BLOCK_BYTE * len - 1000 - n;
+        let (each, rest) = (sum / n, sum % n);
+        let ps: Vec<usize> = (0..n).map(|i| each + usize::from(i < rest)).collect();
+        assert!(ps.iter().all(|p| (256..1000).contains(p)), "{ps:?}");
+        ps
+    }
+
+    #[test]
+    fn a_node_at_exactly_the_key_bytes_limit_parses() {
+        let node = node_reusing(&prefixes_at_the_limit(200));
+        assert_eq!(node_stats(&node).unwrap().key_bytes, MAX_KEY_BYTES_PER_BLOCK_BYTE * node.len());
+        assert_eq!(Node::parse(&node).unwrap().leaves().count(), 201);
+    }
+
+    #[test]
+    fn a_node_one_key_byte_over_the_limit_is_refused() {
+        // Before the limit nothing refused this node, nor one with longer
+        // prefixes rebuilding about 45 times its length in keys.
+        let mut ps = prefixes_at_the_limit(200);
+        ps[0] += 1;
+        let node = node_reusing(&ps);
+        let over = MAX_KEY_BYTES_PER_BLOCK_BYTE * node.len() + 1;
+        let err = Node::parse(&node).unwrap_err();
+        assert!(
+            matches!(err, Error::NodeKeysTooLarge { key_bytes, block_len }
+                if key_bytes == over && block_len == node.len()),
+            "{err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn node_stats_counts_the_keys_a_node_rebuilds() {
+        let mut tree = Tree::create(MemoryBlockStore::new()).await.unwrap();
+        for rkey in ["3jqfcqzm3fo2j", "3jqfcqzm3fp2j", "3jqfcqzm3fq2j", "3jqfcqzm3fr2j"] {
+            tree.add(&format!("com.example.record/{rkey}"), value_cid()).await.unwrap();
+        }
+        let block = tree.storage.read_block(tree.root).await.unwrap();
+        let node = Node::parse(&block).unwrap();
+
+        let stats = node_stats(&block).unwrap();
+        assert!(stats.entries > 0, "the root holds at least one key");
+        assert_eq!(stats.block_len, block.len());
+        assert_eq!(stats.entries, node.leaves().count());
+        assert_eq!(stats.key_bytes, node.leaves().map(|e| e.key.len()).sum::<usize>());
+    }
+
+    #[test]
+    fn node_stats_refuses_bytes_that_are_not_a_node() {
+        let block = serde_ipld_dagcbor::to_vec(&"not a node").unwrap();
+        assert!(matches!(node_stats(&block), Err(Error::Parse(_))));
     }
 }
