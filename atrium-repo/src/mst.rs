@@ -1098,8 +1098,20 @@ struct TreeEntry {
     value: Cid,
 }
 
+/// The longest MST key the reference implementation accepts
+/// (`isValidMstKey` in `@atproto/repo`). Real repo paths stay well under it.
+const MAX_KEY_LEN: usize = 1024;
+
 impl TreeEntry {
     fn parse(entry: schema::TreeEntry, prev_key: &[u8]) -> Result<Self, Error> {
+        // Checked before the key is rebuilt. Prefix compression lets each entry
+        // reuse the whole previous key, so without a cap a node of n entries can
+        // rebuild keys totalling about n²/2 bytes from a block far smaller.
+        let len = entry.prefix_len.saturating_add(entry.key_suffix.len());
+        if len > MAX_KEY_LEN {
+            return Err(Error::KeyTooLong(len));
+        }
+
         let key = if entry.prefix_len == 0 {
             entry.key_suffix
         } else if prev_key.len() < entry.prefix_len {
@@ -1131,6 +1143,8 @@ pub enum Error {
     BlockStore(#[from] crate::blockstore::Error),
     #[error("serde_ipld_dagcbor decoding error: {0}")]
     Parse(#[from] serde_ipld_dagcbor::DecodeError<Infallible>),
+    #[error("MST key of {0} bytes exceeds the 1024-byte limit")]
+    KeyTooLong(usize),
 }
 
 #[cfg(test)]
@@ -1520,5 +1534,35 @@ mod test {
                 "com.example.bbcd/2222222222224",
             ]
         );
+    }
+
+    /// A node whose first key is `first` bytes long and whose second entry
+    /// reuses all of it as a prefix, adding `suffix` more bytes.
+    fn node_with_keys(first: usize, suffix: usize) -> Vec<u8> {
+        let entry = |prefix_len, key_suffix| schema::TreeEntry {
+            prefix_len,
+            key_suffix,
+            value: value_cid(),
+            tree: None,
+        };
+        let node = schema::Node {
+            left: None,
+            entries: vec![entry(0, vec![b'a'; first]), entry(first, vec![b'b'; suffix])],
+        };
+        serde_ipld_dagcbor::to_vec(&node).unwrap()
+    }
+
+    #[test]
+    fn node_with_a_1024_byte_key_parses() {
+        let node = Node::parse(&node_with_keys(1000, 24)).unwrap();
+        assert_eq!(node.leaves().last().unwrap().key.len(), MAX_KEY_LEN);
+    }
+
+    #[test]
+    fn node_with_a_key_over_1024_bytes_is_refused() {
+        // Before the cap, an entry could reuse the whole previous key as its
+        // prefix, so keys grew by one byte per entry with no limit.
+        let err = Node::parse(&node_with_keys(1000, 25)).unwrap_err();
+        assert!(matches!(err, Error::KeyTooLong(1025)), "{err:?}");
     }
 }
