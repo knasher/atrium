@@ -2,6 +2,7 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet, hash_map::Entry},
     convert::Infallible,
+    sync::Arc,
 };
 
 use algos::FindPathResult;
@@ -855,9 +856,10 @@ impl<S: AsyncBlockStoreRead> Tree<S> {
     /// `Ok(Some(cid))`, `Ok(None)` for a missing key, or `Err` for a node that could not be read
     /// or parsed, or a path longer than any valid MST has ([`Error::PathTooDeep`]).
     ///
-    /// A node that fails is remembered. The first key whose path reaches it gets the real error;
-    /// every later one gets [`Error::NodeUnreadable`] with that error's text, and the node is not
-    /// read or parsed again.
+    /// A node that fails is remembered, and every key whose path reaches it gets the same
+    /// [`Error::NodeUnreadable`], whose [`UnreadableNode::source`] is the failure, such as
+    /// [`Error::BlockStore`] for a node missing from a partial CAR. The node is not read or
+    /// parsed again.
     pub async fn get_many(&mut self, keys: &[&str]) -> Vec<Result<Option<Cid>, Error>> {
         let mut cache = HashMap::new();
         let mut found = Vec::with_capacity(keys.len());
@@ -870,16 +872,14 @@ impl<S: AsyncBlockStoreRead> Tree<S> {
     async fn get_cached(
         &mut self,
         key: &str,
-        cache: &mut HashMap<Cid, Result<CachedNode, String>>,
+        cache: &mut HashMap<Cid, Result<CachedNode, Arc<UnreadableNode>>>,
     ) -> Result<Option<Cid>, Error> {
         let mut cid = self.root;
         for _ in 0..MAX_PATH_NODES {
             let step = match cache.entry(cid) {
                 Entry::Occupied(hit) => match hit.get() {
                     Ok(node) => node.step(key),
-                    Err(reason) => {
-                        return Err(Error::NodeUnreadable { cid, reason: reason.clone() });
-                    }
+                    Err(failure) => return Err(Error::NodeUnreadable(Arc::clone(failure))),
                 },
                 Entry::Vacant(slot) => match Node::read_from(&mut self.storage, cid).await {
                     Ok(node) => {
@@ -888,9 +888,10 @@ impl<S: AsyncBlockStoreRead> Tree<S> {
                         slot.insert(Ok(node));
                         step
                     }
-                    Err(err) => {
-                        slot.insert(Err(err.to_string()));
-                        return Err(err);
+                    Err(source) => {
+                        let failure = Arc::new(UnreadableNode { cid, source });
+                        slot.insert(Err(Arc::clone(&failure)));
+                        return Err(Error::NodeUnreadable(failure));
                     }
                 },
             };
@@ -1034,10 +1035,7 @@ impl Node {
 
         // Checked before any key is rebuilt, so a node can never cost more
         // than `MAX_KEY_BYTES_PER_BLOCK_BYTE` times its own length in keys.
-        let key_bytes = key_bytes(&node);
-        if key_bytes > MAX_KEY_BYTES_PER_BLOCK_BYTE.saturating_mul(bytes.len()) {
-            return Err(Error::NodeKeysTooLarge { key_bytes, block_len: bytes.len() });
-        }
+        check_node_keys(&node, bytes.len())?;
 
         let mut entries = vec![];
         if let Some(left) = &node.left {
@@ -1109,6 +1107,11 @@ impl Node {
         }
 
         let bytes = serde_ipld_dagcbor::to_vec(&node).unwrap();
+        // Refuse to write a node `Node::parse` would refuse to read back. The
+        // limit's derivation assumes SHA-256 values, but `Tree::add` accepts
+        // any `Cid`, so without this a caller's values could leave a tree
+        // this crate can no longer open.
+        check_node_keys(&node, bytes.len())?;
         Ok(bs.write_block(DAG_CBOR, SHA2_256, &bytes).await?)
     }
 
@@ -1248,14 +1251,35 @@ fn check_key_len(key: &str) -> Result<(), Error> {
 /// 1023-byte key, about 45 times its size, and a node full of them costs
 /// that multiple of its block in memory.
 ///
-/// 19 is derived, not measured, so no honest node can reach it. A key is at
+/// 20 is derived, not measured, so no honest node can reach it. A key is at
 /// most [`MAX_KEY_LEN`] (1024) bytes, and every honest entry stores its
-/// record's full SHA-256 CID, so the smallest an honest entry can be is 56
-/// bytes: the map header and four one-letter keys (9), `p` (3), a suffix of
-/// at least one byte, since keys are distinct and in order (2), the 41-byte
-/// CID link, and a null `t` (1). No honest entry, and so no honest node,
-/// rebuilds more than 1024 / 56 ≈ 18.3 key bytes per block byte.
-const MAX_KEY_BYTES_PER_BLOCK_BYTE: usize = 19;
+/// record's full SHA-256 CID, so the smallest an honest entry can be is 53
+/// bytes: the map header and three one-letter keys (7), `p` (3), a suffix of
+/// at least one byte, since keys are distinct and in order (2), and the
+/// 41-byte CID link, with `t` left out. The spec calls `t` nullable, and
+/// this crate and `@atproto/repo` both write it, but nothing stops a writer
+/// omitting it. No honest entry, and so no honest node, rebuilds more than
+/// 1024 / 53 ≈ 19.3 key bytes per block byte. Real repo paths are shorter
+/// still, at most 830 bytes (a 317-byte NSID, `/`, and a 512-byte record
+/// key), so about 15.7.
+///
+/// This bounds the keys a node rebuilds, not all it costs to parse. Parsing
+/// also builds a struct per entry, about 20 times a minimal entry's size, so
+/// a node can cost about 40 times its block in all. That is still
+/// proportional to the input, which is what matters.
+const MAX_KEY_BYTES_PER_BLOCK_BYTE: usize = 20;
+
+/// Refuse a node whose keys would rebuild to more than
+/// `MAX_KEY_BYTES_PER_BLOCK_BYTE` times its block. [`Node::parse`] checks this
+/// before reading a node, and [`Node::serialize_into`] before writing one, so
+/// this crate never writes a tree it would refuse to read.
+fn check_node_keys(node: &schema::Node, block_len: usize) -> Result<(), Error> {
+    let key_bytes = key_bytes(node);
+    if key_bytes > MAX_KEY_BYTES_PER_BLOCK_BYTE.saturating_mul(block_len) {
+        return Err(Error::NodeKeysTooLarge { key_bytes, block_len });
+    }
+    Ok(())
+}
 
 /// The key bytes a node rebuilds: the sum, over its entries, of the prefix
 /// each reuses and the suffix each stores. Computed without rebuilding any
@@ -1343,8 +1367,21 @@ pub enum Error {
     NodeKeysTooLarge { key_bytes: usize, block_len: usize },
     #[error("MST path longer than {max} nodes", max = MAX_PATH_NODES)]
     PathTooDeep,
-    #[error("MST node {cid} unreadable: {reason}")]
-    NodeUnreadable { cid: Cid, reason: String },
+    /// A node [`Tree::get_many`] could not read or parse. Shared by every key whose path
+    /// reached it, and behind an `Arc` so this enum stays small.
+    #[error(transparent)]
+    NodeUnreadable(Arc<UnreadableNode>),
+}
+
+/// A node [`Tree::get_many`] could not read or parse, and why.
+#[derive(Debug, thiserror::Error)]
+#[error("MST node {cid} unreadable: {source}")]
+pub struct UnreadableNode {
+    /// The node's CID.
+    pub cid: Cid,
+    /// Why it could not be read or parsed.
+    #[source]
+    pub source: Error,
 }
 
 #[cfg(test)]
@@ -1995,21 +2032,26 @@ mod test {
         let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
         let many = tree.get_many(&keys).await;
 
-        let mut first = true;
+        let mut shared: Option<Arc<UnreadableNode>> = None;
         for (i, (found, under)) in many.into_iter().zip(under).enumerate() {
             match (found, under) {
                 (Ok(found), false) => assert_eq!(found, Some(value_for(i))),
-                (Err(Error::BlockStore(crate::blockstore::Error::CidNotFound)), true) if first => {
-                    first = false;
-                }
-                (Err(Error::NodeUnreadable { cid, reason }), true) if !first => {
-                    assert_eq!(cid, hidden);
-                    assert!(reason.contains("CID does not exist"), "{reason}");
+                (Err(Error::NodeUnreadable(failure)), true) => {
+                    assert_eq!(failure.cid, hidden);
+                    assert!(
+                        matches!(
+                            failure.source,
+                            Error::BlockStore(crate::blockstore::Error::CidNotFound)
+                        ),
+                        "{failure:?}"
+                    );
+                    let first = shared.get_or_insert_with(|| Arc::clone(&failure));
+                    assert!(Arc::ptr_eq(first, &failure), "every key gets the same failure");
                 }
                 other => panic!("key {i}: unexpected {other:?}"),
             }
         }
-        assert!(!first, "some key reached the missing node");
+        assert!(shared.is_some(), "some key reached the missing node");
         assert_eq!(tree.storage.reads.get(&hidden), Some(&1), "the missing node is tried once");
     }
 
@@ -2029,5 +2071,67 @@ mod test {
             .unwrap();
         let mut tree = Tree::open(bs, root);
         assert_eq!(tree.get_many(&["", "a", "b", "c", "d"]).await.len(), 5);
+    }
+
+    /// `NodeUnreadable` sits behind an `Arc`, so `mst::Error` stays the size it was on `main`
+    /// before `get_many`: 40 bytes, measured at PR #8's review.
+    #[test]
+    fn errors_stay_small() {
+        assert!(std::mem::size_of::<Error>() <= 40, "{}", std::mem::size_of::<Error>());
+    }
+
+    /// 300 keys a caller may legally write: 1000 bytes long, sharing a 992-byte prefix, and all
+    /// at layer 0, so they share one node.
+    fn long_layer_0_keys() -> Vec<String> {
+        let prefix = format!("com.example.record/{}", "a".repeat(992 - 19));
+        (0..10_000)
+            .map(|i| format!("{prefix}{i:08}"))
+            .filter(|key| leading_zeroes(key.as_bytes()) == 0)
+            .take(300)
+            .collect()
+    }
+
+    /// The PR #8 review's case. With the smallest value CID, those keys rebuild more than 20
+    /// times their node's length, and before the write-path check the 35th `add` wrote a node
+    /// at 19.3x that every later `get` and `add` then refused to read.
+    #[tokio::test]
+    async fn add_refuses_a_node_over_the_key_bytes_limit_and_leaves_the_tree_usable() {
+        let keys = long_layer_0_keys();
+        let mut tree = Tree::create(MemoryBlockStore::new()).await.unwrap();
+        let mut added = 0;
+        let err = loop {
+            assert!(added < keys.len(), "the limit never tripped");
+            let root = tree.root;
+            match tree.add(&keys[added], tiny_cid()).await {
+                Ok(()) => added += 1,
+                Err(err) => {
+                    assert_eq!(tree.root, root, "nothing was written");
+                    break err;
+                }
+            }
+        };
+        assert!(matches!(err, Error::NodeKeysTooLarge { .. }), "{err:?}");
+
+        // The tree is still readable and writable.
+        for key in &keys[..added] {
+            assert_eq!(tree.get(key).await.unwrap(), Some(tiny_cid()));
+        }
+        tree.add("com.example.record/b", value_cid()).await.unwrap();
+        assert_eq!(tree.get("com.example.record/b").await.unwrap(), Some(value_cid()));
+    }
+
+    /// The same 300 keys with an honest SHA-256 value each: every `add` succeeds, because no
+    /// entry carrying a full CID can rebuild 20 times its length.
+    #[tokio::test]
+    async fn add_writes_long_shared_prefix_keys_with_honest_values() {
+        let mut tree = Tree::create(MemoryBlockStore::new()).await.unwrap();
+        for key in long_layer_0_keys() {
+            tree.add(&key, value_cid()).await.unwrap();
+        }
+        let root = tree.storage.read_block(tree.root).await.unwrap();
+        let stats = node_stats(&root).unwrap();
+        assert_eq!(stats.entries, 300, "one node holds every key");
+        // About 16.8x: as close as an honest node gets, and still under 20.
+        assert!(stats.key_bytes > 16 * stats.block_len, "{stats:?}");
     }
 }
