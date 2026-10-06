@@ -1,4 +1,8 @@
-use std::{cmp::Ordering, collections::HashSet, convert::Infallible};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet, hash_map::Entry},
+    convert::Infallible,
+};
 
 use algos::FindPathResult;
 use async_stream::try_stream;
@@ -841,6 +845,64 @@ impl<S: AsyncBlockStoreRead> Tree<S> {
         }
     }
 
+    /// Looks up several keys at once. Each node is read and parsed at most once for the whole
+    /// call, and each step down the tree is a binary search, so the work is linear in the nodes
+    /// visited plus keys × path length × log(entries). [`Tree::get`] parses every node on a
+    /// key's path again for each key, and scans each one, so a caller looking up many keys in
+    /// one untrusted tree should use this instead.
+    ///
+    /// Results are in the same order as `keys`, one per key, with the same meaning as `get`:
+    /// `Ok(Some(cid))`, `Ok(None)` for a missing key, or `Err` for a node that could not be read
+    /// or parsed, or a path longer than any valid MST has ([`Error::PathTooDeep`]).
+    ///
+    /// A node that fails is remembered. The first key whose path reaches it gets the real error;
+    /// every later one gets [`Error::NodeUnreadable`] with that error's text, and the node is not
+    /// read or parsed again.
+    pub async fn get_many(&mut self, keys: &[&str]) -> Vec<Result<Option<Cid>, Error>> {
+        let mut cache = HashMap::new();
+        let mut found = Vec::with_capacity(keys.len());
+        for key in keys {
+            found.push(self.get_cached(key, &mut cache).await);
+        }
+        found
+    }
+
+    async fn get_cached(
+        &mut self,
+        key: &str,
+        cache: &mut HashMap<Cid, Result<CachedNode, String>>,
+    ) -> Result<Option<Cid>, Error> {
+        let mut cid = self.root;
+        for _ in 0..MAX_PATH_NODES {
+            let step = match cache.entry(cid) {
+                Entry::Occupied(hit) => match hit.get() {
+                    Ok(node) => node.step(key),
+                    Err(reason) => {
+                        return Err(Error::NodeUnreadable { cid, reason: reason.clone() });
+                    }
+                },
+                Entry::Vacant(slot) => match Node::read_from(&mut self.storage, cid).await {
+                    Ok(node) => {
+                        let node = CachedNode::new(node);
+                        let step = node.step(key);
+                        slot.insert(Ok(node));
+                        step
+                    }
+                    Err(err) => {
+                        slot.insert(Err(err.to_string()));
+                        return Err(err);
+                    }
+                },
+            };
+            match step {
+                Step::Found(value) => return Ok(Some(value)),
+                Step::Absent => return Ok(None),
+                Step::Descend(subtree) => cid = subtree,
+            }
+        }
+        Err(Error::PathTooDeep)
+    }
+
     /// Returns the full path to a node that contains the specified key (including the containing node).
     ///
     /// If the key is not present in the tree, this will return the path to the node that would've contained
@@ -861,6 +923,64 @@ impl<S: AsyncBlockStoreRead> Tree<S> {
                 Ok(r.into_iter())
             }
             Err(e) => Err(e),
+        }
+    }
+}
+
+/// The most nodes a path from an MST's root down to a key can visit.
+///
+/// A key's layer is the number of leading zero bits in its SHA-256 hash, halved and rounded
+/// down, so layers run from 0 to 128. Subtree links never skip a layer, so a path visits at
+/// most one node per layer. Anything longer is not a valid MST, and without this limit a chain
+/// of keyless nodes as long as the CAR allows would be walked once per key looked up.
+const MAX_PATH_NODES: usize = 129;
+
+/// A node held by [`Tree::get_many`] for the length of one call, with the positions of its
+/// leaves in `entries`, so each step down the tree is a binary search rather than a scan.
+struct CachedNode {
+    node: Node,
+    leaves: Vec<usize>,
+}
+
+/// One step of a lookup through a [`CachedNode`].
+enum Step {
+    Found(Cid),
+    Descend(Cid),
+    Absent,
+}
+
+impl CachedNode {
+    fn new(node: Node) -> Self {
+        let leaves = node
+            .entries
+            .iter()
+            .enumerate()
+            .filter_map(|(i, entry)| entry.leaf().map(|_| i))
+            .collect();
+        Self { node, leaves }
+    }
+
+    /// The decision `algos::traverse_find` makes, with `find_ge`'s scan replaced by a binary
+    /// search over the leaves. On a node whose leaves are in key order, which every valid node's
+    /// are, the two agree. On one whose leaves are not, the answer may differ from a scan's but
+    /// is still one of this node's own entries.
+    fn step(&self, key: &str) -> Step {
+        let entries = &self.node.entries;
+        if entries.is_empty() {
+            return Step::Absent;
+        }
+        let first_ge = self.leaves.partition_point(
+            |&i| matches!(entries.get(i), Some(NodeEntry::Leaf(e)) if e.key.as_str() < key),
+        );
+        let index = self.leaves.get(first_ge).copied().unwrap_or(entries.len());
+        if let Some(NodeEntry::Leaf(e)) = entries.get(index) {
+            if e.key == key {
+                return Step::Found(e.value);
+            }
+        }
+        match index.checked_sub(1).and_then(|left| entries.get(left)) {
+            Some(NodeEntry::Tree(subtree)) => Step::Descend(*subtree),
+            _ => Step::Absent,
         }
     }
 }
@@ -1221,6 +1341,10 @@ pub enum Error {
         max = MAX_KEY_BYTES_PER_BLOCK_BYTE
     )]
     NodeKeysTooLarge { key_bytes: usize, block_len: usize },
+    #[error("MST path longer than {max} nodes", max = MAX_PATH_NODES)]
+    PathTooDeep,
+    #[error("MST node {cid} unreadable: {reason}")]
+    NodeUnreadable { cid: Cid, reason: String },
 }
 
 #[cfg(test)]
@@ -1736,5 +1860,174 @@ mod test {
     fn node_stats_refuses_bytes_that_are_not_a_node() {
         let block = serde_ipld_dagcbor::to_vec(&"not a node").unwrap();
         assert!(matches!(node_stats(&block), Err(Error::Parse(_))));
+    }
+
+    // --- get_many and the path cap ------------------------------------------------------------
+
+    /// A distinct value per key, so a result in the wrong slot is caught.
+    fn value_for(i: usize) -> Cid {
+        Cid::new_v1(0x55, Multihash::wrap(0x00, &i.to_be_bytes()).unwrap())
+    }
+
+    fn key_for(i: usize) -> String {
+        format!("com.example.record/{i:04}")
+    }
+
+    async fn tree_of(n: usize) -> Tree<MemoryBlockStore> {
+        let mut tree = Tree::create(MemoryBlockStore::new()).await.unwrap();
+        for i in 0..n {
+            tree.add(&key_for(i), value_for(i)).await.unwrap();
+        }
+        tree
+    }
+
+    /// A store that counts reads per CID, and can hide one block.
+    struct Watched<S> {
+        inner: S,
+        reads: HashMap<Cid, usize>,
+        hidden: Option<Cid>,
+    }
+
+    impl<S: AsyncBlockStoreRead> AsyncBlockStoreRead for Watched<S> {
+        async fn read_block_into(
+            &mut self,
+            cid: Cid,
+            contents: &mut Vec<u8>,
+        ) -> Result<(), crate::blockstore::Error> {
+            *self.reads.entry(cid).or_default() += 1;
+            if self.hidden == Some(cid) {
+                return Err(crate::blockstore::Error::CidNotFound);
+            }
+            self.inner.read_block_into(cid, contents).await
+        }
+    }
+
+    /// `keyless` nodes holding only a left link, above one node holding `key`.
+    async fn chain_above(keyless: usize, key: &str) -> Tree<MemoryBlockStore> {
+        let mut bs = MemoryBlockStore::new();
+        let leaf = schema::Node {
+            left: None,
+            entries: vec![schema::TreeEntry {
+                prefix_len: 0,
+                key_suffix: key.as_bytes().to_vec(),
+                value: value_cid(),
+                tree: None,
+            }],
+        };
+        let mut cid = bs
+            .write_block(DAG_CBOR, SHA2_256, &serde_ipld_dagcbor::to_vec(&leaf).unwrap())
+            .await
+            .unwrap();
+        for _ in 0..keyless {
+            let node = schema::Node { left: Some(cid), entries: vec![] };
+            cid = bs
+                .write_block(DAG_CBOR, SHA2_256, &serde_ipld_dagcbor::to_vec(&node).unwrap())
+                .await
+                .unwrap();
+        }
+        Tree::open(bs, cid)
+    }
+
+    #[tokio::test]
+    async fn get_many_finds_a_key_at_the_end_of_a_129_node_path() {
+        let key = "com.example.record/a";
+        let mut tree = chain_above(MAX_PATH_NODES - 1, key).await;
+        let [found] = tree.get_many(&[key]).await.try_into().unwrap();
+        assert_eq!(found.unwrap(), Some(value_cid()));
+    }
+
+    #[tokio::test]
+    async fn get_many_refuses_a_130_node_path() {
+        let key = "com.example.record/a";
+        let mut tree = chain_above(MAX_PATH_NODES, key).await;
+        let [found] = tree.get_many(&[key]).await.try_into().unwrap();
+        assert!(matches!(found, Err(Error::PathTooDeep)), "{found:?}");
+    }
+
+    #[tokio::test]
+    async fn get_many_agrees_with_get_key_by_key_in_input_order() {
+        let mut tree = tree_of(1000).await;
+        // Present keys in a scrambled order, plus absent keys before, between, and after them.
+        let mut keys: Vec<String> = (0..1000).map(|i| key_for((i * 7) % 1000)).collect();
+        keys.extend(["com.example.record/".into(), "com.example.record/0500x".into()]);
+        keys.extend(["com.example.record/9999".into(), "a".into(), "z".into()]);
+        let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+
+        let many = tree.get_many(&keys).await;
+        assert_eq!(many.len(), keys.len());
+        for (key, found) in keys.iter().zip(many) {
+            assert_eq!(found.unwrap(), tree.get(key).await.unwrap(), "{key}");
+        }
+    }
+
+    #[tokio::test]
+    async fn get_many_reads_each_node_at_most_once() {
+        let tree = tree_of(1000).await;
+        let mut tree = Tree::open(
+            Watched { inner: tree.storage, reads: HashMap::new(), hidden: None },
+            tree.root,
+        );
+        let keys: Vec<String> = (0..1000).map(key_for).collect();
+        let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+
+        let many = tree.get_many(&keys).await;
+        assert!(many.into_iter().enumerate().all(|(i, f)| f.unwrap() == Some(value_for(i))));
+        assert!(tree.storage.reads.len() > 1, "a 1,000-key tree has more than one node");
+        assert!(tree.storage.reads.values().all(|&n| n == 1), "{:?}", tree.storage.reads);
+    }
+
+    #[tokio::test]
+    async fn get_many_fails_only_the_keys_under_a_missing_node() {
+        let mut tree = tree_of(1000).await;
+        let root = Node::read_from(&mut tree.storage, tree.root).await.unwrap();
+        let hidden = *root.trees().next().expect("a 1,000-key root has a subtree");
+        let keys: Vec<String> = (0..1000).map(key_for).collect();
+        let mut under = Vec::new();
+        for key in &keys {
+            under.push(tree.extract_path(key).await.unwrap().any(|cid| cid == hidden));
+        }
+        assert!(under.iter().any(|&u| u) && under.iter().any(|&u| !u));
+
+        let mut tree = Tree::open(
+            Watched { inner: tree.storage, reads: HashMap::new(), hidden: Some(hidden) },
+            tree.root,
+        );
+        let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+        let many = tree.get_many(&keys).await;
+
+        let mut first = true;
+        for (i, (found, under)) in many.into_iter().zip(under).enumerate() {
+            match (found, under) {
+                (Ok(found), false) => assert_eq!(found, Some(value_for(i))),
+                (Err(Error::BlockStore(crate::blockstore::Error::CidNotFound)), true) if first => {
+                    first = false;
+                }
+                (Err(Error::NodeUnreadable { cid, reason }), true) if !first => {
+                    assert_eq!(cid, hidden);
+                    assert!(reason.contains("CID does not exist"), "{reason}");
+                }
+                other => panic!("key {i}: unexpected {other:?}"),
+            }
+        }
+        assert!(!first, "some key reached the missing node");
+        assert_eq!(tree.storage.reads.get(&hidden), Some(&1), "the missing node is tried once");
+    }
+
+    #[tokio::test]
+    async fn get_many_does_not_panic_on_leaves_out_of_order() {
+        let mut bs = MemoryBlockStore::new();
+        let entry = |key: &str| schema::TreeEntry {
+            prefix_len: 0,
+            key_suffix: key.as_bytes().to_vec(),
+            value: value_cid(),
+            tree: None,
+        };
+        let node = schema::Node { left: None, entries: vec![entry("c"), entry("a"), entry("b")] };
+        let root = bs
+            .write_block(DAG_CBOR, SHA2_256, &serde_ipld_dagcbor::to_vec(&node).unwrap())
+            .await
+            .unwrap();
+        let mut tree = Tree::open(bs, root);
+        assert_eq!(tree.get_many(&["", "a", "b", "c", "d"]).await.len(), 5);
     }
 }
