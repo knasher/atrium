@@ -623,6 +623,51 @@ fn leading_zeroes(key: &[u8]) -> usize {
     zeroes
 }
 
+/// The most subtree links a walk follows down from the root.
+///
+/// A key's layer is half the leading zero bits of its SHA-256 hash (see
+/// [`leading_zeroes`]), so it is at most 128, and each subtree link goes down
+/// exactly one layer. No path in a well-formed MST is longer.
+const MAX_DEPTH: usize = 128;
+
+/// Keeps a walk to the shape of a well-formed MST.
+///
+/// Verified blocks rule out cycles, but not one subtree reached from many
+/// places. A tree whose every level links to the level below twice makes a
+/// walk take time exponential in its depth. In a well-formed MST, keys
+/// strictly increase in walk order and no path is deeper than [`MAX_DEPTH`].
+/// A walk that revisits a subtree either repeats a key, which
+/// [`WalkGuard::key`] refuses, or passes no keys there and follows a single
+/// path, which [`WalkGuard::depth`] bounds. So a walk's work is linear in the
+/// keys it passes.
+#[derive(Default)]
+struct WalkGuard {
+    last_key: Option<String>,
+}
+
+impl WalkGuard {
+    /// Refuses a key that does not sort after the one before it.
+    fn key(&mut self, key: &str) -> Result<(), Error> {
+        if let Some(last) = &self.last_key {
+            if key <= last.as_str() {
+                return Err(Error::KeyOutOfOrder(key.to_string()));
+            }
+        }
+        let last = self.last_key.get_or_insert_with(String::new);
+        last.clear();
+        last.push_str(key);
+        Ok(())
+    }
+
+    /// Refuses a node further below the root than any well-formed MST goes.
+    fn depth(depth: usize) -> Result<(), Error> {
+        if depth > MAX_DEPTH {
+            return Err(Error::TooDeep);
+        }
+        Ok(())
+    }
+}
+
 /// A merkle search tree data structure, backed by storage implementing
 /// [AsyncBlockStoreRead] and optionally [AsyncBlockStoreWrite].
 ///
@@ -719,29 +764,40 @@ impl<S: AsyncBlockStoreRead> Tree<S> {
     }
 
     /// Returns a stream of all CIDs in the tree or referenced by the tree.
+    ///
+    /// A tree whose keys are out of order, or that is deeper than a well-formed
+    /// MST can be, ends the stream with an error.
     pub fn export(&mut self) -> impl Stream<Item = Result<Cid, Error>> + '_ {
         // Start from the root of the tree.
-        let mut stack = vec![Located::InSubtree(self.root)];
+        let mut stack = vec![(Located::InSubtree(self.root), 0)];
+        let mut guard = WalkGuard::default();
 
         try_stream! {
-            while let Some(e) = stack.pop() {
+            while let Some((e, depth)) = stack.pop() {
                 match e {
                     Located::InSubtree(cid) => {
+                        WalkGuard::depth(depth)?;
                         let node = Node::read_from(&mut self.storage, cid).await?;
                         yield cid;
 
                         for entry in node.entries.iter().rev() {
                             match entry {
                                 NodeEntry::Tree(entry) => {
-                                    stack.push(Located::InSubtree(*entry));
+                                    stack.push((Located::InSubtree(*entry), depth + 1));
                                 }
                                 NodeEntry::Leaf(entry) => {
-                                    stack.push(Located::Entry(entry.value));
+                                    stack.push((
+                                        Located::Entry((entry.key.clone(), entry.value)),
+                                        depth,
+                                    ));
                                 }
                             }
                         }
                     }
-                    Located::Entry(value) => yield value,
+                    Located::Entry((key, value)) => {
+                        guard.key(&key)?;
+                        yield value;
+                    }
                 }
             }
         }
@@ -751,27 +807,38 @@ impl<S: AsyncBlockStoreRead> Tree<S> {
     ///
     /// This function will _not_ work with a partial MST, such as one received from
     /// a firehose record.
+    ///
+    /// A tree whose keys are out of order, or that is deeper than a well-formed
+    /// MST can be, ends the stream with an error.
     pub fn entries(&mut self) -> impl Stream<Item = Result<(String, Cid), Error>> + '_ {
         // Start from the root of the tree.
-        let mut stack = vec![Located::InSubtree(self.root)];
+        let mut stack = vec![(Located::InSubtree(self.root), 0)];
+        let mut guard = WalkGuard::default();
 
         try_stream! {
-            while let Some(e) = stack.pop() {
+            while let Some((e, depth)) = stack.pop() {
                 match e {
                     Located::InSubtree(cid) => {
+                        WalkGuard::depth(depth)?;
                         let node = Node::read_from(&mut self.storage, cid).await?;
                         for entry in node.entries.iter().rev() {
                             match entry {
                                 NodeEntry::Tree(entry) => {
-                                    stack.push(Located::InSubtree(*entry));
+                                    stack.push((Located::InSubtree(*entry), depth + 1));
                                 }
                                 NodeEntry::Leaf(entry) => {
-                                    stack.push(Located::Entry((entry.key.clone(), entry.value)));
+                                    stack.push((
+                                        Located::Entry((entry.key.clone(), entry.value)),
+                                        depth,
+                                    ));
                                 }
                             }
                         }
                     }
-                    Located::Entry((key, value)) => yield (key, value),
+                    Located::Entry((key, value)) => {
+                        guard.key(&key)?;
+                        yield (key, value);
+                    }
                 }
             }
         }
@@ -781,30 +848,41 @@ impl<S: AsyncBlockStoreRead> Tree<S> {
     ///
     /// This function will _not_ work with a partial MST, such as one received from
     /// a firehose record.
+    ///
+    /// A tree whose keys are out of order, or that is deeper than a well-formed
+    /// MST can be, ends the stream with an error.
     pub fn entries_prefixed<'a>(
         &'a mut self,
         prefix: &'a str,
     ) -> impl Stream<Item = Result<(String, Cid), Error>> + 'a {
         // Start from the root of the tree.
-        let mut stack = vec![Located::InSubtree(self.root)];
+        let mut stack = vec![(Located::InSubtree(self.root), 0)];
+        let mut guard = WalkGuard::default();
 
         try_stream! {
-            while let Some(e) = stack.pop() {
+            while let Some((e, depth)) = stack.pop() {
                 match e {
                     Located::InSubtree(cid) => {
+                        WalkGuard::depth(depth)?;
                         let node = Node::read_from(&mut self.storage, cid).await?;
                         for entry in node.entries_with_prefix(prefix).rev() {
                             match entry {
                                 NodeEntry::Tree(entry) => {
-                                    stack.push(Located::InSubtree(entry));
+                                    stack.push((Located::InSubtree(entry), depth + 1));
                                 }
                                 NodeEntry::Leaf(entry) => {
-                                    stack.push(Located::Entry((entry.key.clone(), entry.value)));
+                                    stack.push((
+                                        Located::Entry((entry.key.clone(), entry.value)),
+                                        depth,
+                                    ));
                                 }
                             }
                         }
                     }
-                    Located::Entry((key, value)) => yield (key, value),
+                    Located::Entry((key, value)) => {
+                        guard.key(&key)?;
+                        yield (key, value);
+                    }
                 }
             }
         }
@@ -1131,6 +1209,10 @@ pub enum Error {
     BlockStore(#[from] crate::blockstore::Error),
     #[error("serde_ipld_dagcbor decoding error: {0}")]
     Parse(#[from] serde_ipld_dagcbor::DecodeError<Infallible>),
+    #[error("MST key {0:?} does not sort after the key before it")]
+    KeyOutOfOrder(String),
+    #[error("MST is more than {} levels deep", MAX_DEPTH)]
+    TooDeep,
 }
 
 #[cfg(test)]
@@ -1520,5 +1602,123 @@ mod test {
                 "com.example.bbcd/2222222222224",
             ]
         );
+    }
+
+    /// Counts the blocks read through it.
+    struct CountingStore {
+        inner: MemoryBlockStore,
+        reads: usize,
+    }
+
+    impl AsyncBlockStoreRead for CountingStore {
+        async fn read_block_into(
+            &mut self,
+            cid: Cid,
+            contents: &mut Vec<u8>,
+        ) -> Result<(), crate::blockstore::Error> {
+            self.reads += 1;
+            self.inner.read_block_into(cid, contents).await
+        }
+    }
+
+    /// Writes a node exactly as given, hashed with SHA-256 as `CarStore`
+    /// requires, without checking that it belongs in a well-formed MST.
+    async fn put_node(
+        bs: &mut MemoryBlockStore,
+        left: Option<Cid>,
+        entries: &[(&str, Option<Cid>)],
+    ) -> Cid {
+        let node = schema::Node {
+            left,
+            entries: entries
+                .iter()
+                .map(|(key, tree)| schema::TreeEntry {
+                    prefix_len: 0,
+                    key_suffix: key.as_bytes().to_vec(),
+                    value: value_cid(),
+                    tree: *tree,
+                })
+                .collect(),
+        };
+        let bytes = serde_ipld_dagcbor::to_vec(&node).unwrap();
+        bs.write_block(DAG_CBOR, SHA2_256, &bytes).await.unwrap()
+    }
+
+    /// A path of `levels` key-less nodes above a node holding one key.
+    async fn keyless_path(levels: usize) -> (Cid, MemoryBlockStore) {
+        let mut bs = MemoryBlockStore::new();
+        let mut node = put_node(&mut bs, None, &[("com.example.record/a", None)]).await;
+        for _ in 0..levels {
+            node = put_node(&mut bs, Some(node), &[]).await;
+        }
+        (node, bs)
+    }
+
+    #[tokio::test]
+    async fn walks_refuse_a_subtree_reached_twice() {
+        // 40 levels, each linking to the one below twice: 2^40 node visits
+        // for a walk that does not notice the repeated keys.
+        let mut bs = MemoryBlockStore::new();
+        let mut below = None;
+        for level in 0..40 {
+            let key = format!("com.example.record/{level:02}");
+            below = Some(put_node(&mut bs, below, &[(&key, below)]).await);
+        }
+        let mut tree = Tree::open(CountingStore { inner: bs, reads: 0 }, below.unwrap());
+
+        let items: Vec<_> = tree.entries().collect().await;
+        assert!(matches!(items.last(), Some(Err(Error::KeyOutOfOrder(_)))), "{items:?}");
+        assert!(tree.storage.reads <= 2 * 40, "{} reads", tree.storage.reads);
+
+        tree.storage.reads = 0;
+        let items: Vec<_> = tree.entries_prefixed("com.example.record/").collect().await;
+        assert!(matches!(items.last(), Some(Err(Error::KeyOutOfOrder(_)))), "{items:?}");
+        assert!(tree.storage.reads <= 2 * 40, "{} reads", tree.storage.reads);
+
+        tree.storage.reads = 0;
+        let items: Vec<_> = tree.export().collect().await;
+        assert!(matches!(items.last(), Some(Err(Error::KeyOutOfOrder(_)))), "{items:?}");
+        assert!(tree.storage.reads <= 2 * 40, "{} reads", tree.storage.reads);
+    }
+
+    #[tokio::test]
+    async fn walks_refuse_a_tree_deeper_than_any_mst() {
+        let (root, bs) = keyless_path(MAX_DEPTH + 1).await;
+        let mut tree = Tree::open(bs, root);
+
+        let items: Vec<_> = tree.entries().collect().await;
+        assert!(matches!(items.as_slice(), [Err(Error::TooDeep)]), "{items:?}");
+        let items: Vec<_> = tree.entries_prefixed("com.example.record/").collect().await;
+        assert!(matches!(items.as_slice(), [Err(Error::TooDeep)]), "{items:?}");
+        let items: Vec<_> = tree.export().collect().await;
+        assert!(matches!(items.last(), Some(Err(Error::TooDeep))), "{items:?}");
+    }
+
+    #[tokio::test]
+    async fn walks_follow_the_deepest_path_an_mst_can_have() {
+        let (root, bs) = keyless_path(MAX_DEPTH).await;
+        let mut tree = Tree::open(bs, root);
+
+        let keys = tree.keys().try_collect::<Vec<_>>().await.unwrap();
+        assert_eq!(keys, ["com.example.record/a"]);
+        let keys = tree.keys_prefixed("com.example.record/").try_collect::<Vec<_>>().await.unwrap();
+        assert_eq!(keys, ["com.example.record/a"]);
+        let cids = tree.export().try_collect::<Vec<_>>().await.unwrap();
+        assert_eq!(cids.len(), MAX_DEPTH + 2);
+    }
+
+    #[tokio::test]
+    async fn a_keyless_node_reached_twice_is_walked() {
+        // The walks do not refuse every node reached twice, only repeated keys
+        // and impossible depths.
+        let mut bs = MemoryBlockStore::new();
+        let empty = put_node(&mut bs, None, &[]).await;
+        let root = put_node(&mut bs, Some(empty), &[("com.example.record/a", Some(empty))]).await;
+        let mut tree = Tree::open(bs, root);
+
+        let keys = tree.keys().try_collect::<Vec<_>>().await.unwrap();
+        assert_eq!(keys, ["com.example.record/a"]);
+        let cids = tree.export().try_collect::<Vec<_>>().await.unwrap();
+        assert_eq!(cids, [root, empty, value_cid(), empty]);
     }
 }
