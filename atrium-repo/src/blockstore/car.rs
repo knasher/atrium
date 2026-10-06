@@ -21,6 +21,19 @@ pub struct V1Header {
     pub roots: Vec<Cid>,
 }
 
+/// The largest digest a [`Cid`] can hold (`Cid` is `CidGeneric<64>`).
+const MAX_DIGEST_LEN: u64 = 64;
+
+/// Check a length the CAR declares for itself against the bytes actually
+/// left after `at`, before anything is allocated for it.
+fn fits(declared: u64, at: u64, end: u64) -> Result<(), Error> {
+    let remaining = end.saturating_sub(at);
+    if declared > remaining {
+        return Err(Error::LengthExceedsData { declared, remaining });
+    }
+    Ok(())
+}
+
 async fn read_cid<R: futures::AsyncRead + futures::AsyncSeek + Unpin>(
     mut reader: R,
 ) -> Result<Cid, Error> {
@@ -42,6 +55,11 @@ async fn read_cid<R: futures::AsyncRead + futures::AsyncSeek + Unpin>(
             let start = reader.stream_position().await?;
             let _code = unsigned_varint::aio::read_u64(&mut reader).await?;
             let size = unsigned_varint::aio::read_u64(&mut reader).await?;
+            // A larger digest could never decode, so refuse it before
+            // allocating for it.
+            if size > MAX_DIGEST_LEN {
+                return Err(Error::DigestTooLarge(size));
+            }
             let len = (reader.stream_position().await? - start) + size;
 
             let mut mh_bytes = vec![0; len as usize];
@@ -64,9 +82,18 @@ pub struct CarStore<S: AsyncRead + AsyncSeek> {
 
 impl<R: AsyncRead + AsyncSeek + Unpin> CarStore<R> {
     /// Open a pre-existing CAR file.
+    ///
+    /// Every length a CAR declares is checked against the bytes actually
+    /// present before it is allocated, so a malformed or hostile CAR is an
+    /// error rather than a panic or an out-of-memory kill.
     pub async fn open(mut storage: R) -> Result<Self, Error> {
+        let begin = storage.stream_position().await?;
+        let end = storage.seek(SeekFrom::End(0)).await?;
+        storage.seek(SeekFrom::Start(begin)).await?;
+
         // Read the header.
         let header_len = unsigned_varint::aio::read_usize((&mut storage).compat()).await?;
+        fits(header_len as u64, storage.stream_position().await?, end)?;
         let mut header_bytes = vec![0; header_len];
         storage.read_exact(&mut header_bytes).await?;
         let header: V1Header = serde_ipld_dagcbor::from_slice(&header_bytes)?;
@@ -79,9 +106,13 @@ impl<R: AsyncRead + AsyncSeek + Unpin> CarStore<R> {
             match unsigned_varint::aio::read_u64((&mut storage).compat()).await {
                 Ok(data_len) => {
                     let start = storage.stream_position().await?;
+                    fits(data_len, start, end)?;
                     let cid = read_cid((&mut storage).compat()).await?;
                     let offset = storage.stream_position().await?;
-                    let len = data_len - (offset - start);
+                    let len = offset
+                        .checked_sub(start)
+                        .and_then(|cid_len| data_len.checked_sub(cid_len))
+                        .ok_or(Error::SectionShorterThanCid)?;
                     // reader.seek(SeekFrom::Start(offset + len)).await?;
 
                     // Validate this block's multihash.
@@ -214,6 +245,12 @@ pub enum Error {
     Multihash(#[from] ipld_core::cid::multihash::Error),
     #[error("serde_ipld_dagcbor decoding error: {0}")]
     Parse(#[from] serde_ipld_dagcbor::DecodeError<Infallible>),
+    #[error("section is shorter than the CID it starts with")]
+    SectionShorterThanCid,
+    #[error("declared length {declared} exceeds the {remaining} bytes left in the CAR")]
+    LengthExceedsData { declared: u64, remaining: u64 },
+    #[error("multihash declares a {0}-byte digest; at most 64 fit")]
+    DigestTooLarge(u64),
 }
 
 #[cfg(test)]
@@ -275,5 +312,88 @@ mod test {
         let mut bs = CarStore::open(Cursor::new(&mut mem)).await.unwrap();
         assert_eq!(bs.roots().next().unwrap(), cid);
         assert_eq!(bs.read_block(cid).await.unwrap(), STR);
+    }
+
+    /// A header-only CAR. Tests append sections to it by hand, because
+    /// `write_block` cannot write a lie.
+    async fn header_only() -> Vec<u8> {
+        let mut mem = Vec::new();
+        CarStore::create(Cursor::new(&mut mem)).await.unwrap();
+        mem
+    }
+
+    fn push_varint(car: &mut Vec<u8>, n: u64) {
+        let mut buf = unsigned_varint::encode::u64_buffer();
+        car.extend_from_slice(unsigned_varint::encode::u64(n, &mut buf));
+    }
+
+    /// A 36-byte CIDv1 (dag-cbor, sha2-256) with an arbitrary digest.
+    fn cid_v1_bytes() -> Vec<u8> {
+        let mut bytes = vec![0x01, 0x71, 0x12, 0x20];
+        bytes.extend_from_slice(&[0xab; 32]);
+        bytes
+    }
+
+    async fn open(car: Vec<u8>) -> Result<CarStore<Cursor<Vec<u8>>>, Error> {
+        CarStore::open(Cursor::new(car)).await
+    }
+
+    #[tokio::test]
+    async fn section_shorter_than_its_cid_is_refused() {
+        // A section declaring 4 bytes, in front of a 36-byte CID. Before the
+        // fix, `data_len - cid_len` underflowed and `resize` panicked.
+        let mut car = header_only().await;
+        push_varint(&mut car, 4);
+        car.extend_from_slice(&cid_v1_bytes());
+        car.extend_from_slice(&[0; 8]);
+
+        let err = open(car).await.unwrap_err();
+        assert!(matches!(err, Error::SectionShorterThanCid), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn section_longer_than_the_car_is_refused() {
+        // Before the fix, `resize` zero-filled the declared 1 TiB.
+        let mut car = header_only().await;
+        push_varint(&mut car, 1 << 40);
+        car.extend_from_slice(&cid_v1_bytes());
+        car.extend_from_slice(&[0; 10]);
+
+        let err = open(car).await.unwrap_err();
+        assert!(
+            matches!(err, Error::LengthExceedsData { declared, remaining: 46 } if declared == 1 << 40),
+            "{err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn header_longer_than_the_car_is_refused() {
+        let mut car = Vec::new();
+        push_varint(&mut car, 1000);
+        car.extend_from_slice(&[0; 5]);
+
+        let err = open(car).await.unwrap_err();
+        assert!(
+            matches!(err, Error::LengthExceedsData { declared: 1000, remaining: 5 }),
+            "{err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn digest_larger_than_a_cid_can_hold_is_refused() {
+        for size in [1 << 60, u64::MAX] {
+            // CIDv1, dag-cbor, sha2-256, then the declared digest size. The
+            // section's own length fits, so the digest size is what is checked.
+            let mut section = vec![0x01, 0x71, 0x12];
+            push_varint(&mut section, size);
+            section.extend_from_slice(&[0; 40]);
+
+            let mut car = header_only().await;
+            push_varint(&mut car, 40);
+            car.extend_from_slice(&section);
+
+            let err = open(car).await.unwrap_err();
+            assert!(matches!(err, Error::DigestTooLarge(s) if s == size), "{err:?}");
+        }
     }
 }
