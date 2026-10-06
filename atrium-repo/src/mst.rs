@@ -681,12 +681,14 @@ impl<S: AsyncBlockStoreRead + AsyncBlockStoreWrite> Tree<S> {
 
     /// Add a new key with the specified value to the tree.
     pub async fn add(&mut self, key: &str, value: Cid) -> Result<(), Error> {
+        check_key_len(key)?;
         self.root = algos::add(&mut self.storage, self.root, key, value).await?;
         Ok(())
     }
 
     /// Update an existing key with a new value.
     pub async fn update(&mut self, key: &str, value: Cid) -> Result<(), Error> {
+        check_key_len(key)?;
         self.root = algos::update(&mut self.storage, self.root, key, value).await?;
         Ok(())
     }
@@ -1102,6 +1104,15 @@ struct TreeEntry {
 /// (`isValidMstKey` in `@atproto/repo`). Real repo paths stay well under it.
 const MAX_KEY_LEN: usize = 1024;
 
+/// Refuse a key on the write path that [`TreeEntry::parse`] would refuse to
+/// read back, so an oversized key never leaves a tree this crate cannot open.
+fn check_key_len(key: &str) -> Result<(), Error> {
+    if key.len() > MAX_KEY_LEN {
+        return Err(Error::KeyTooLong(key.len()));
+    }
+    Ok(())
+}
+
 impl TreeEntry {
     fn parse(entry: schema::TreeEntry, prev_key: &[u8]) -> Result<Self, Error> {
         // Checked before the key is rebuilt. Prefix compression lets each entry
@@ -1143,7 +1154,7 @@ pub enum Error {
     BlockStore(#[from] crate::blockstore::Error),
     #[error("serde_ipld_dagcbor decoding error: {0}")]
     Parse(#[from] serde_ipld_dagcbor::DecodeError<Infallible>),
-    #[error("MST key of {0} bytes exceeds the 1024-byte limit")]
+    #[error("MST key of {0} bytes exceeds the {max}-byte limit", max = MAX_KEY_LEN)]
     KeyTooLong(usize),
 }
 
@@ -1564,5 +1575,22 @@ mod test {
         // prefix, so keys grew by one byte per entry with no limit.
         let err = Node::parse(&node_with_keys(1000, 25)).unwrap_err();
         assert!(matches!(err, Error::KeyTooLong(1025)), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn adding_or_updating_a_key_over_1024_bytes_is_refused_before_writing() {
+        let mut tree = Tree::create(MemoryBlockStore::new()).await.unwrap();
+        let root = tree.root;
+        let long = format!("com.example.record/{}", "a".repeat(2000));
+
+        let err = tree.add(&long, value_cid()).await.unwrap_err();
+        assert!(matches!(err, Error::KeyTooLong(2019)), "{err:?}");
+        let err = tree.update(&long, value_cid()).await.unwrap_err();
+        assert!(matches!(err, Error::KeyTooLong(2019)), "{err:?}");
+        assert_eq!(tree.root, root, "nothing was written");
+
+        // The tree is still readable and writable.
+        tree.add("com.example.record/b", value_cid()).await.unwrap();
+        assert_eq!(tree.get("com.example.record/b").await.unwrap(), Some(value_cid()));
     }
 }
